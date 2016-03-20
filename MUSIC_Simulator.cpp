@@ -54,6 +54,58 @@ MUSIC_Simulator::MUSIC_Simulator()
   SegCMERange = 0;
   SegEexcRange = 0;
 
+  // Geometry manager
+  Geo = new TGeoManager("Geo", "MUSIC geometry manager");  
+
+  // Define some materials
+  MatVacuum = new TGeoMaterial("Vac", 0, 0, 0);
+  MatAl = new TGeoMaterial("Al", 26.9815, 13, 2.7);
+  MatSi = new TGeoMaterial("Si", 28.0855, 14, 2.329);
+  // NOTE: Not sure about units of arguments
+
+  // Define some media
+  Vacuum = new TGeoMedium("Vacuum", 1, MatVacuum);
+  Al = new TGeoMedium("Aluminium", 1, MatAl); 
+  Si = new TGeoMedium("Silicon", 1, MatSi); 
+  
+  // Special media (empty, just using their address)
+  CD2 = new TGeoMedium("CD2", 1, MatVacuum); 
+  CF4 = new TGeoMedium("CF4", 1, MatVacuum); 
+  D2 = new TGeoMedium("D2", 1, MatVacuum); 
+  He3 = new TGeoMedium("He3", 1, MatVacuum); 
+  He4 = new TGeoMedium("He4", 1, MatVacuum); 
+  Kapton = new TGeoMedium("Kapton", 1, MatVacuum); 
+  LiF = new TGeoMedium("LiF", 1, MatVacuum); 
+  Mylar = new TGeoMedium("Mylar", 1, MatVacuum); 
+  Ti = new TGeoMedium("Ti", 1, MatVacuum); 
+
+
+  // Make the top container volume
+  VolTop = Geo->MakeBox("VolTop", Vacuum, 300., 300., 300.);
+  Geo->SetTopVolume(VolTop);
+
+
+  // Zero other volume pointers
+  VolAnode = 0;
+  VolIC = 0;
+  VolICBkFlange = 0;
+  VolICFlange = 0;
+  VolICPSGFrame = 0;
+  VolICSec = 0;
+  VolICWin = 0;
+  VolRDBody = 0;
+  VolRDFace = 0;
+  VolRDSi1 = 0;
+  VolRDSi2 = 0;
+  VolRDSi3 = 0;
+  VolSD = 0;
+  VolSolDSDoor = 0;
+  VolSolUSDoor = 0;
+  VolTgt = 0;
+  VolTgtFrame = 0;
+  VolTgtWinDS = 0;
+  VolTgtWinUS = 0;
+
 
   // Pseudo-random number generator.
   Rdm = new TRandom3();
@@ -304,6 +356,99 @@ void MUSIC_Simulator::CalculateExcEnergyRange()
   }
   return;
 }
+
+
+
+///////////////////////////////////////////////////////////////////////////////////
+// Establish the dimensions of the MUSIC components (anode, cathode, etc).
+///////////////////////////////////////////////////////////////////////////////////
+void MUSIC_Simulator::CreateMUSIC()
+{
+  const int NumStps = 18;
+  const int NumCols = 2;
+  int ColorCol[NumCols] = {kBlue, kRed};
+  //  double StripWidth[]
+  double dx = 10.0;  // anode length (cm)
+  double dy = 10.0;  // distance from anode to cathode (cm)
+  double dz = 1.0;   // anode width (cm)
+  double WidthFrac[NumStps][NumCols] = 
+    {{1,0},
+     {1/3.,2/3.},
+     {2/3.,1/3.},
+     {1/3.,2/3.},
+     {2/3.,1/3.},
+     {1/3.,2/3.},
+     {2/3.,1/3.},
+     {1/3.,2/3.},
+     {2/3.,1/3.},
+     {1/3.,2/3.},
+     {2/3.,1/3.},
+     {1/3.,2/3.},
+     {2/3.,1/3.},
+     {1/3.,2/3.},
+     {2/3.,1/3.},
+     {1/3.,2/3.},
+     {2/3.,1/3.},
+     {1,0}
+    };
+  
+  // Anode volumes
+  double z0 = 0;
+  VolAnode = new TGeoVolume**[NumStps];
+  for (int stp=0; stp<NumStps; stp++) {
+    VolAnode[stp] = new TGeoVolume*[NumCols];
+    z0 += 2*dz;
+    double x0 = -dx;// - WidthFrac[stp][0]*dx/2;1
+    for (int col=0; col<NumCols; col++) {
+      if (WidthFrac[stp][col]>0) {
+	VolAnode[stp][col] = Geo->MakeBox(Form("VolAnode%d%d",stp,col), Vacuum, 
+					   WidthFrac[stp][col]*dx, dy, dz);
+	VolAnode[stp][col]->SetLineColor(ColorCol[col]);
+	VolAnode[stp][col]->SetTransparency(85);
+	x0 += WidthFrac[stp][col]*dx;
+	VolTop->AddNode(VolAnode[stp][col], 1, new TGeoTranslation(x0,0,z0));
+	x0 += WidthFrac[stp][col]*dx;
+      }
+      else 
+	VolAnode[stp][col] = 0;
+    }
+  }
+    
+  return;
+}
+
+
+
+
+
+///////////////////////////////////////////////////////////////////////////////////
+// Show a 3D image of MUSIC with an given transparency level into the specified
+// TEveManager object pointer.
+///////////////////////////////////////////////////////////////////////////////////
+void MUSIC_Simulator::DrawMUSIC(TEveManager* gEve, short Transparency /*From 0 to 100*/)
+{
+  if (VolAnode!=0) {
+    if (Transparency<0 || Transparency>100) {
+      cout << "Warning: Transparency level must be from 0 to 100." << endl;
+      Transparency = 0;
+    }
+    
+    /* From: http://root.cern.ch/root/html/TGeoManager.html#TGeoManager:CloseGeometry
+      Closing geometry implies checking the geometry validity, fixing shapes
+      with negative parameters (run-time shapes) building the cache manager,
+      voxelizing all volumes, counting the total number of physical nodes and
+      registring the manager class to the browser.
+    */
+    Geo->CloseGeometry();
+    
+    TEveGeoTopNode* TopNode = new TEveGeoTopNode(Geo, Geo->GetTopNode());
+    gEve->AddGlobalElement(TopNode);
+    gEve->Redraw3D(kTRUE);
+  }
+  return;
+}
+
+
 
 
 ///////////////////////////////////////////////////////////////////////////////////

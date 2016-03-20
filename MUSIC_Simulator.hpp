@@ -3,6 +3,12 @@
 #ifndef MUSIC_Simulator_hpp_INCLUDED   
 #define MUSIC_Simulator_hpp_INCLUDED   
 
+//C and C++ libraries
+#include <iostream>
+#include <fstream>
+#include <string>
+
+//ROOT libraries
 #include <TCanvas.h>
 #include <TF1.h>
 #include <TFile.h>
@@ -12,14 +18,25 @@
 #include <TMath.h>
 #include <TPolyLine.h>
 #include <TRandom3.h>
+#include <TEveGeoNode.h>
+#include <TEveManager.h>
+#include <TGeoManager.h>
+#include <TGeoMaterial.h>
+#include <TGeoMedium.h>
+#include <TGeoNode.h>
+#include <TGeoVolume.h>
+#include <TGeoXtru.h>
+#include <TSlider.h>
+#include <TString.h>
+#include <TStopwatch.h>
+#include <TTree.h>
 
-#include <iostream>
-#include <fstream>
-#include <string>
-
+// Useful libraries
 #include "../../PhysicsTools/EnergyLoss.hpp"
 #include "../../PhysicsTools/FourVector.hpp"
 #include "../../PhysicsTools/Particle.hpp"
+#include "../../PhysicsTools/SRIM_Table_Maker.hpp"
+
 
 // NOTE: The inclusion of the header files in this .hpp instad of the .cpp file is
 //       justified by "Headers and Includes: Why and How"  (see section 5 of 
@@ -32,6 +49,8 @@ public:
   void CalculateCMEnergyRange();
   void CalculateExcEnergyRange();
   double* CalculateELoss(Particle* P, EnergyLoss* PInTgt);
+  void CreateMUSIC();
+  void DrawMUSIC(TEveManager* gEve, short Transparency /*From 0 to 100*/);
   void SetBeamParticle(string ParticleName, double M, int Q, double KineticE);
   bool SetEnergyLossFile(string ParticleName, string TgtELossFile);
   void SetFusedParticle(string ParticleName, double M, int Q, int NEexc=0, double* Eexc=0);
@@ -51,6 +70,8 @@ public:
 private:
   // Useful random number.
   TRandom3* Rdm;
+
+  // Particle related stuff.
   Particle* Beam;
   Particle* Target;
   Particle** Fused;
@@ -88,6 +109,50 @@ private:
   TH2F* HELoss;
   TGraph** Trace;
   int NTraces;
+
+
+  // Geometry stuff.
+  TGeoManager* Geo;
+  TGeoMaterial* MatAl;
+  TGeoMaterial* MatSi;
+  TGeoMaterial* MatVacuum;
+  TGeoMedium* Al;
+  TGeoMedium* CD2;
+  TGeoMedium* CF4;
+  TGeoMedium* D2;
+  TGeoMedium* He3;
+  TGeoMedium* He4;
+  TGeoMedium* Kapton;
+  TGeoMedium* LiF;
+  TGeoMedium* Mylar;
+  TGeoMedium* Si;
+  TGeoMedium* Ti;
+  TGeoMedium* Vacuum;
+  TGeoVolume* VolIC;
+  TGeoVolume* VolICBkFlange;
+  TGeoVolume* VolICFlange;
+  TGeoVolume* VolICPSGFrame;
+  TGeoVolume** VolICSec;
+  TGeoVolume* VolICWin;
+  TGeoVolume* VolRDBody;// New recoil det
+  TGeoVolume* VolRDFace;// New recoil det
+  TGeoVolume* VolRDSi1;   // New recoil det
+  TGeoVolume* VolRDSi2;   // New recoil det
+  TGeoVolume* VolRDSi3;   // New recoil det
+  TGeoVolume* VolSD;
+  TGeoVolume* VolSolDSDoor;
+  TGeoVolume*** VolAnode;
+  TGeoVolume* VolSolUSDoor;
+  TGeoVolume* VolTgt;
+  TGeoVolume* VolTgtFrame;
+  TGeoVolume* VolTgtWinDS;
+  TGeoVolume* VolTgtWinUS;
+  TGeoVolume* VolTop;
+
+  // For energy loss tables.
+  SRIM_Table_Maker* SRIM;
+
+
 
   static const double c = 29.9792458;  // Speed of light in cm/ns.
 
