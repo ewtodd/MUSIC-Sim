@@ -7,6 +7,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <cstdlib>
 
 //ROOT libraries
 #include <TCanvas.h>
@@ -52,17 +53,18 @@ public:
   double* CalculateELoss(Particle* P, EnergyLoss* PInTgt, int Event);
   void DrawMUSIC(TEveManager* gEve, short Transparency /*From 0 to 100*/);
   void DrawTrajecotries(TEveManager* gEve);
-  void SetAnode(int Stps, int Cols, double** dx, double dy, double** dz, short** Colors, short Trans);
-  void SetBeamParticle(string ParticleName, double M, int Q, int Color, double KineticE);
-  bool SetEnergyLossFile(string ParticleName, string TgtELossFile);
-  void SetFusedParticle(string ParticleName, double M, int Q, int NEexc=0, double* Eexc=0);
-  void SetHeavyParticle(string ParticleName, double M, int Q, int Color, int NEexc=0, double* Eexc=0);
-  void SetLightParticle(string ParticleName, double M, int Q, int Color); 
-  void SetParamDirectory(string Dir);
-  void SetPreviousCrossSection(string FileName, string Format, short Marker, short Color);
+  void SetAnode(std::string AnodeGeomFile, short Trans);
+  void SetBeamParticle(std::string ParticleName, double M, int Q, int Color, double KineticE);
+  bool SetEnergyLossFile(std::string ParticleName, std::string TgtELossFile);
+  void SetFusedParticle(std::string ParticleName, double M, int Q, int NEexc=0, double* Eexc=0);
+  void SetHeavyParticle(std::string ParticleName, double M, int Q, int Color, int NEexc=0, 
+			double* Eexc=0);
+  void SetLightParticle(std::string ParticleName, double M, int Q, int Color); 
+  void SetParamDirectory(std::string Dir);
+  void SetPreviousCrossSection(std::string FileName, std::string Format, short Marker, short Color);
   void SetSegmentLength(int NSegments, float* SegLength /*cm*/);
   void SetStripEnergyResolution(float Sigma);
-  void SetTargetParticle(string ParticleName, double M, int Q);
+  void SetTargetParticle(std::string ParticleName, double M, int Q);
   void ShowCMEnergyRange();
   void ShowPreviousCrossSection(float XMin, float XMax, float YMin, float YMax);
   void Simulate(int Reaction, int StpNum, int NEvents);
@@ -94,8 +96,8 @@ private:
   double Kb_after_window;
   double EneSigma;
 
-  string ParamDirectory;
-  string Name;
+  std::string ParamDirectory;
+  std::string Name;
  
   double* SegLength;
   double* SegEexcRange;
@@ -104,7 +106,6 @@ private:
   double CMEMin;
   double EexcMax;
   double EexcMin;
-  double VolW, VolH, VolL;
 
   TGraph** PrevCS;
   TH2F* HELoss;
@@ -122,9 +123,11 @@ private:
   double AnodeDepth;
   double AnodeLength;
   double AnodeHeight;
+  short** AnodeColor;
   double** AnodeDX;
-  double AnodeDY;
+  double** AnodeDY;
   double** AnodeDZ;
+  std::string** AnodeSegName;
   TGeoManager* Geo;
   TGeoMaterial* MatAl;
   TGeoMaterial* MatSi;

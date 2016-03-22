@@ -215,10 +215,6 @@ double* MUSIC_Simulator::CalculateELoss(Particle* P, EnergyLoss* PInTgt, int Eve
   for (int n=0; n<AnodeStps; n++)
     DeltaE[n] = 0;
 
-  //  P->Trajectory->RemoveElements();  // did not work
-  //  P->Trajectory->AnnihilateElements();
-  // P->Trajectory->ClearProjectedList();
-  // P->Trajectory->DestroyElements();
   P->AllTraj[Event]->SetName(Form("%s evt %d", P->Name.c_str(),Event));
   
   // Get the initial conditions from the Particle object.
@@ -250,9 +246,7 @@ double* MUSIC_Simulator::CalculateELoss(Particle* P, EnergyLoss* PInTgt, int Eve
     zf = zi + TrackLength*cos(theta);
     cout << "ri = " << xi << "," << yi << "," << zi << endl;
     cout << "rf = " << xf << "," << yf << "," << zf << endl;
-        
-
-    
+ 
     // Check whether the final point is within the detector volume.
     if (fabs(xf)>AnodeLength/2 || fabs(yf)>AnodeHeight/2 || zf>AnodeDepth || zf<0)
       cout << "Out!" << endl;
@@ -427,13 +421,7 @@ void MUSIC_Simulator::DrawTrajecotries(TEveManager* gEve)
       TrajH[e]->SetLineWidth(W);
       gEve->AddElement(TrajH[e]);
     }
-  }
-
-  // for (int e=0; e<NEvents; e++) {
-  //   gEve->AddElement(TrajH[e]);
-  //   gEve->AddElement(TrajL[e]);
-  // }
-  
+  } 
 
   gEve->FullRedraw3D(kTRUE);
   return;
@@ -443,78 +431,153 @@ void MUSIC_Simulator::DrawTrajecotries(TEveManager* gEve)
 ///////////////////////////////////////////////////////////////////////////////////
 // Establish the dimensions of the MUSIC components (anode, cathode, etc).
 ///////////////////////////////////////////////////////////////////////////////////
-void MUSIC_Simulator::SetAnode(int Stps, int Cols, double** dx, double dy, double** dz, short** Colors,
-			       short Trans)
+void MUSIC_Simulator::SetAnode(string AnodeGeomFile, short Trans)
 {
-  AnodeStps = Stps;
-  AnodeCols = Cols;
+
+  ifstream GeomFile;
+  string line;
+  int line_counter = 0;
+
   AnodeDepth = 0;
   AnodeLength = 0;
   AnodeHeight = 0;
-  
-  // Right now, the anode segment width (distance along the z axis) is
-  // the same for all columns. This is the geometry used in the
-  // original MUSIC. Upgrades to this code need to be carried out in
-  // order to properly account for anode geometries with different
-  // widths for different columns (not a priority at this time).
-  AnodeDZ = new double*[AnodeStps];
-  for (int stp=0; stp<AnodeStps; stp++) {
-    AnodeDZ[stp] = new double[AnodeCols];
-    for (int col=0; col<AnodeCols; col++)
-      AnodeDZ[stp][col] = dz[stp][col];
-    // The total anode depth is the sum of all strip widths for the
-    // first column.
-    AnodeDepth += dz[stp][0];
-  }
-  // The anode segment length (distance along the x axis) typically
-  // varies with the column number.
-  AnodeDX = new double*[AnodeStps];
-  for (int stp=0; stp<AnodeStps; stp++) {
-    AnodeDX[stp] = new double[AnodeCols];
-    for (int col=0; col<AnodeCols; col++) {
-      AnodeDX[stp][col] = dx[stp][col];
-      // The total anode length is taken from strip 0
-      if (stp==0)
-	AnodeLength += dx[stp][col];
-    }
-  }
+  AnodeStps = 0;
+  AnodeCols = 0;
 
-  // Anode segment height
-  AnodeHeight = dy;
+  GeomFile.open(AnodeGeomFile.c_str());
+  if (!GeomFile.is_open()) 
+    cout << "> ERROR: Anode geometry file \"" << AnodeGeomFile << "\" couldn't be opened." << endl;
+  else {
+    cout << "> Loading anode geometry loaded from \"" << AnodeGeomFile << "\"." << endl;
 
-  cout << "Anode " << Stps << " " << Cols << endl;
-  // Anode volumes
-  double z0 = -dz[0][0]/2;
-  VolAnode = new TGeoVolume**[Stps];
-  cout << VolAnode << endl;
-  for (int stp=0; stp<Stps; stp++) {
-    VolAnode[stp] = new TGeoVolume*[Cols];
-    cout << dz[stp][0] << endl;
-    z0 += dz[stp][0];
-    cout << "z0=" << z0; 
-    double x0 = -AnodeLength/2;
-    for (int col=0; col<Cols; col++) {
-      if (dx[stp][col]>0) {
-	VolAnode[stp][col] = Geo->MakeBox(Form("VolAnode%d%d",stp,col), Vacuum, 
-					  dx[stp][col]/2, dy/2, dz[stp][col]/2);
-	VolAnode[stp][col]->SetLineColor(Colors[stp][col]);
-	VolAnode[stp][col]->SetTransparency(Trans);
-	x0 += dx[stp][col]/2;
-	cout << "  x0=" << x0; 
-	VolTop->AddNode(VolAnode[stp][col], 1, new TGeoTranslation(x0,0,z0));
-	x0 += dx[stp][col]/2;
+    // Get the number of strips and columns for the anode segments
+    do {
+      getline(GeomFile, line);
+      if (line.find("strips:")!=string::npos) 
+	AnodeStps = atoi(line.substr(line.find(':')+1).c_str());
+      if (line.find("columns:")!=string::npos)
+	AnodeCols = atoi(line.substr(line.find(':')+1).c_str());     
+    } while (!GeomFile.eof());
+    GeomFile.close();
+    
+    cout << "Anode strips: " << AnodeStps << endl;
+    cout << "Anode columns: " << AnodeCols << endl;    
+    if (AnodeStps>0 && AnodeCols>0) {
+      // Initialize the anode segment dimensions
+      AnodeDX = new double*[AnodeStps];
+      AnodeDY = new double*[AnodeStps];
+      AnodeDZ = new double*[AnodeStps];
+      AnodeColor = new short*[AnodeStps];
+      AnodeSegName = new string*[AnodeStps];
+      for (int stp=0; stp<AnodeStps; stp++) {
+	AnodeDX[stp] = new double[AnodeCols];
+	AnodeDY[stp] = new double[AnodeCols];
+	AnodeDZ[stp] = new double[AnodeCols];
+	AnodeColor[stp] = new short[AnodeCols];
+	AnodeSegName[stp] = new string[AnodeCols];
+	for (int col=0; col<AnodeCols; col++) {
+	  AnodeDX[stp][col] = 0;
+	  AnodeDY[stp][col] = 0;
+	  AnodeDZ[stp][col] = 0;
+	  AnodeColor[stp][col] = 632; // red
+	  AnodeSegName[stp][col] = "";
+	}
       }
-      else 
-	VolAnode[stp][col] = 0;
-      cout << "\n";
-    }
+ 
+      // Get the name and dimensions for each anode segments(strip and
+      // column)
+      GeomFile.open(AnodeGeomFile.c_str());
+      do {
+	getline(GeomFile, line);
+	if (line.find("Stp	Col	Name	Dx	Dy	Dz	Color	Comment")<line.npos)
+	  break;
+      } while (!GeomFile.eof());
+      // First we need to count how many (not empty) lines are listed
+      do {
+	getline(GeomFile, line);
+	if (!line.empty())
+	  line_counter++;
+      } while (!GeomFile.eof());
+      GeomFile.close();
+      cout << "Total lines: " << line_counter << endl;
+      // Now that the number of lines has been established reopen the
+      // text file to load the parameters
+      GeomFile.open(AnodeGeomFile.c_str());
+      do {
+	getline(GeomFile, line);
+	if (line.find("Stp	Col	Name	Dx	Dy	Dz	Color	Comment")<line.npos)
+	  break;
+      } while (!GeomFile.eof());
+      // Loading parameters and printing them to confirm they have been
+      // read correctly
+      for (int nl=0; nl<line_counter; nl++) {
+	int stp = 0;
+	int col = 0;      
+	string name;
+	double dx, dy, dz;
+	short color;
+	GeomFile >> stp >> col >> name >> dx >> dy >> dz >> color;
+	getline(GeomFile, line); // The last column is for comments
+	AnodeSegName[stp][col] = name;
+	AnodeDX[stp][col] = dx;
+	AnodeDY[stp][col] = dy;
+	AnodeDZ[stp][col] = dz;
+	AnodeColor[stp][col] = color;
+	cout << nl << "\t" << AnodeSegName[stp][col] << "\t" << AnodeDX[stp][col] << "\t" 
+	     << AnodeDY[stp][col] << "\t" << AnodeDZ[stp][col] << "\t" << AnodeColor[stp][col] << endl;
+      }
+      GeomFile.close();
+    
+      // The total anode depth (distance along the z axis) is the sum of
+      // all segment depths for the first column
+      for (int stp=0; stp<AnodeStps; stp++)
+	AnodeDepth += AnodeDZ[stp][0];
+    
+      // The total anode length (distance along the x axis) is the sum
+      // of all segment lengths for the first strip
+      for (int col=0; col<AnodeCols; col++)
+	AnodeLength += AnodeDX[0][col];
+
+      // The total anode height (distance along the y axis) is the hight
+      // of the segment in the first strip and first column
+      AnodeHeight = AnodeDY[0][0];
+
+      // Define anode volumes
+      double z0 = -AnodeDZ[0][0]/2;
+      VolAnode = new TGeoVolume**[AnodeStps];
+      for (int stp=0; stp<AnodeStps; stp++) {
+	VolAnode[stp] = new TGeoVolume*[AnodeCols];
+	z0 += AnodeDZ[stp][0];
+	cout << "z0=" << z0; 
+	double x0 = -AnodeLength/2;
+	for (int col=0; col<AnodeCols; col++) {
+	  if (AnodeDX[stp][col]>0) {
+	    VolAnode[stp][col] = Geo->MakeBox(Form("VolAnode%d%d",stp,col), Vacuum, 
+					      AnodeDX[stp][col]/2, AnodeDY[stp][col]/2,
+					      AnodeDZ[stp][col]/2);
+	    VolAnode[stp][col]->SetLineColor(AnodeColor[stp][col]);
+	    VolAnode[stp][col]->SetTransparency(Trans);
+	    x0 += AnodeDX[stp][col]/2;
+	    cout << "  x0=" << x0; 
+	    VolTop->AddNode(VolAnode[stp][col], 1, new TGeoTranslation(x0,0,z0));
+	    x0 += AnodeDX[stp][col]/2;
+	  }
+	  else 
+	    VolAnode[stp][col] = 0;
+	  cout << "\n";
+	}      
+      }
+    } // end if (AnodeStps>0 && AnodeCols>0)
+    
+    HELoss = new TH2F("HELoss","HELoss", AnodeStps,-0.5, AnodeStps-0.5, 400,0,6);
+    HELoss->GetXaxis()->SetTitle("Strip number");
+    HELoss->GetXaxis()->CenterTitle();
+    HELoss->GetYaxis()->SetTitle("Energy loss [MeV]");
+    HELoss->GetYaxis()->CenterTitle(); 
   }
   
-  HELoss = new TH2F("HELoss","HELoss", Stps,-0.5, Stps-0.5, 400,0,6);
-  HELoss->GetXaxis()->SetTitle("Strip number");
-  HELoss->GetXaxis()->CenterTitle();
-  HELoss->GetYaxis()->SetTitle("Energy loss [MeV]");
-  HELoss->GetYaxis()->CenterTitle(); 
+  cout << "Anode dimensions: " << AnodeLength << "x" << AnodeHeight << "x" 
+       << AnodeDepth << "cm^3" << endl;
   return;
 }
 
@@ -930,14 +993,9 @@ void MUSIC_Simulator::Simulate(int Reaction, int SegNum, int NEvents)
 
   Trace = new TGraph*[NEvents];
 
-  // Assume the width and height of MUSIC is 20 cm.
-  VolW = 20;
-  VolH = 20;
-  VolL = 0;
   Kb1 = Kb_after_window;
   zb1 = 0; 
   zb2 = 0;
-  cout << "H2" << endl;
   Kb1 = BeamInTgt->GetFinalEnergy(Kb1,3.522, 0.001);
 
   for (int n=0; n<AnodeStps; n++) {
