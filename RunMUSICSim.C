@@ -17,13 +17,13 @@
   string beam = "20Ne";
   string target = "4He";
   string compound = "24Mg";
-  string light = "a";
+  string light = "4He";
   string heavy = "20Ne";
   // Energy of the beam after the window.
   double Kb = 55;
   
   int Strip = 4;
-  int NEvents = 3;
+  int NEvents = 20;
   double MaxTime = 1000; // ns
   double UserDT = 0.1;     // ns
 
@@ -117,7 +117,7 @@
   MUSIC->SetHeavyParticle(heavy, kBlue, SRIMFile[3]);
 
   // Release the Kracken!!
-  MUSIC->Simulate(Strip, NEvents, MaxTime, UserDT);
+  MUSIC->Simulate(Strip, NEvents, MaxTime, UserDT, 1);
   MUSIC->WriteTraces(Form("Traces_Stp%d_%s_%s.root",Strip,target.c_str(),light.c_str()));
 
 }

@@ -1,10 +1,10 @@
 {
-  int NTraces = 50;
+  int NTraces = 20;
   int stp = 4;
  
-  TFile* TFaa = new TFile(Form("TracesR0_Stp%d_4He_4He.root",stp));
-  TFile* TFap = new TFile(Form("TracesR0_Stp%d_4He_p.root",stp));
-  TFile* TFan = new TFile(Form("TracesR0_Stp%d_4He_n.root",stp));
+  TFile* TFaa = new TFile(Form("Traces_Stp%d_4He_4He.root",stp));
+  TFile* TFap = new TFile(Form("Traces_Stp%d_4He_p.root",stp));
+  TFile* TFan = new TFile(Form("Traces_Stp%d_4He_n.root",stp));
 
   TGraph** Taa = new TGraph*[NTraces];
   for (int n=0; n<NTraces; n++) {
@@ -47,10 +47,12 @@
   HELoss->GetYaxis()->SetLimits(0.0,10);
   HELoss->Draw();
   for (int n=0; n<NTraces; n++) 
-    Taa[n]->Draw("l same");
+    if (Taa[n]!=0)
+      Taa[n]->Draw("l same");
   for (int n=0; n<NTraces; n++) 
-    Tap[n]->Draw("l same");
+    if (Tap[n]!=0)
+      Tap[n]->Draw("l same");
   for (int n=0; n<NTraces; n++) 
-    Tan[n]->Draw("l same");
-
+    if (Tan[n]!=0)
+      Tan[n]->Draw("l same");
 }

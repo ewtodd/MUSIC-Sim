@@ -11,23 +11,24 @@
 
 //ROOT libraries
 #include <TCanvas.h>
-#include <TF1.h>
-#include <TFile.h>
-#include <TGraph.h>
-#include <TH2.h>
-#include <TLine.h>
-#include <TMath.h>
-#include <TPolyLine.h>
-#include <TRandom3.h>
 #include <TEveArrow.h>
 #include <TEveGeoNode.h>
 #include <TEveManager.h>
+#include <TF1.h>
+#include <TFile.h>
 #include <TGeoManager.h>
 #include <TGeoMaterial.h>
 #include <TGeoMedium.h>
 #include <TGeoNode.h>
 #include <TGeoVolume.h>
-#include <TGeoXtru.h>
+#include <TGraph.h>
+#include <TH2.h>
+#include <TLegend.h>
+#include <TLine.h>
+#include <TMath.h>
+#include <TPaveText.h>
+#include <TPolyLine.h>
+#include <TRandom3.h>
 #include <TSlider.h>
 #include <TString.h>
 #include <TStopwatch.h>
@@ -56,14 +57,15 @@ public:
   void SetHeavyParticle(std::string Name, int Color, std::string ELossFile, int NEexc=0, 
 			double* Eexc=0/*MeV*/);
   void SetLightParticle(std::string Name, int Color, std::string ELossFile); 
+  void SetPrintLevel(int PrintLevel);
   void SetStripEnergyResolution(float Sigma/*MeV*/);
   void SetTargetParticle(std::string Name);
-  void Simulate(int StpNum, int NEvents, double MaxTime, double UserDT);
+  void Simulate(int StpNum, int NEvents, double MaxTime, double UserDT, int Wait=0);
   void WriteTraces(char* FileName);
 
 private:
   void SetInitialKinematics(double Kbi);
-  void SetReactionKinematics(double Kbr, double zr);
+  void SetReactionKinematics(double Kbr, double zr, double tof);
   double** PropagateParticle(Particle* PO, int Event, double MaxTime, double UserDT);
 
   // Useful random number.
@@ -79,6 +81,8 @@ private:
   double EneSigma;
 
   std::string Name;
+
+  int PrintLevel;
  
   double* SegLength;
   double* SegEexcRange;
@@ -88,10 +92,12 @@ private:
   double EexcMax;
   double EexcMin;
 
-  TH2F* HELoss;
-  TH2F* HELossB;
-  TH2F** HELossC;
+  TH2F* HCT;
+  TH2F* HCTB;
+  TH2F* HPT;
   TGraph*** Trace;
+  TGraph*** TraceH;
+  TGraph*** TraceL;
   TGraph** TraceB;
   int NTraces;
 
