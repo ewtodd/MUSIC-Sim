@@ -91,7 +91,10 @@ private:
   double EexcMin;
 
   TH2F* HELoss;
-  TGraph** Trace;
+  TH2F* HELossB;
+  TH2F** HELossC;
+  TGraph*** Trace;
+  TGraph** TraceB;
   int NTraces;
 
   int NEvents;

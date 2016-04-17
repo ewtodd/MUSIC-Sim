@@ -17,13 +17,13 @@
   string beam = "20Ne";
   string target = "4He";
   string compound = "24Mg";
-  string light = "p";
-  string heavy = "23Na";
+  string light = "a";
+  string heavy = "20Ne";
   // Energy of the beam after the window.
   double Kb = 55;
   
   int Strip = 4;
-  int NEvents = 2;
+  int NEvents = 1;
   double MaxTime = 1000; // ns
   double UserDT = 0.1;     // ns
 
@@ -102,7 +102,7 @@
   /////////////////////////////////////////////////////////////////////////////
   // gRandom->SetSeed();
   MUSIC_Simulator* MUSIC = new MUSIC_Simulator();
-  MUSIC->SetStripEnergyResolution(0.05);
+  MUSIC->SetStripEnergyResolution(0.025);
   // Geometry
   MUSIC->SetAnode(AnodeGeom, 90);
   // Beam
@@ -118,7 +118,7 @@
 
   // Release the Kracken!!
   MUSIC->Simulate(Strip, NEvents, MaxTime, UserDT);
-  MUSIC->WriteTraces(Form("Traces_Stp%d_%s_%s.root",Strip,target.c_str(),light.c_str()));
+  //  MUSIC->WriteTraces(Form("Traces_Stp%d_%s_%s.root",Strip,target.c_str(),light.c_str()));
 
   /////////////////////////////////////////////////////////////////////////////
   // 3D stuff

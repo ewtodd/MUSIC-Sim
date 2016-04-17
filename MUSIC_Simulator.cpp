@@ -492,9 +492,9 @@ double** MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxT
     double vz = c*p_mag*cos(theta)/Ene;
 
     // Very short time step for dense media, equivalent to distance
-    // steps of 1 um. Let's just hope that the numerator is never
+    // steps of 0.1 um. Let's just hope that the numerator is never
     // zero.
-    double Dt = c*m*1E-4/p_mag;   // from p/c = m*dx/dt -> dt = c*m*dx/p
+    double Dt = c*m*1E-5/p_mag;   // from p/c = m*dx/dt -> dt = c*m*dx/p
     double tf = ti + Dt;
     double xf = xi + vx*Dt;
     double yf = yi + vy*Dt;
@@ -730,18 +730,33 @@ void MUSIC_Simulator::SetAnode(string AnodeGeomFile, short Trans)
       }
     } // end if (AnodeStps>0 && AnodeCols>0)
     
-    HELoss = new TH2F("HELoss","HELoss", AnodeStps,-0.5, AnodeStps-0.5, 400,-4,6);
+    HELossB = new TH2F("HELossB","HELossB", AnodeStps,-0.5, AnodeStps-0.5, 400,0,10);
+    HELossB->GetXaxis()->SetTitle("Strip number");
+    HELossB->GetXaxis()->CenterTitle();
+    HELossB->GetYaxis()->SetTitle("Beam energy loss [MeV]");
+    HELossB->GetYaxis()->CenterTitle(); 
+
+    HELoss = new TH2F("HELoss","HELoss", AnodeStps,-0.5, AnodeStps-0.5, 400,-1.5,1.5);
     HELoss->GetXaxis()->SetTitle("Strip number");
     HELoss->GetXaxis()->CenterTitle();
-    HELoss->GetYaxis()->SetTitle("Energy loss - average beam energy loss (middle of strip) [MeV]");
+    HELoss->GetYaxis()->SetTitle("Energy loss - average beam energy loss [MeV]");
     HELoss->GetYaxis()->CenterTitle(); 
+
+    HELossC = new TH2F*[AnodeCols];
+    for (int col=0; col<AnodeCols; col++) {
+      HELossC[col] = new TH2F(Form("HELossC%d",col), Form("column %d",col), 
+			      AnodeStps,-0.5, AnodeStps-0.5, 400,-3,3);
+      HELossC[col]->GetXaxis()->SetTitle("Strip number");
+      HELossC[col]->GetXaxis()->CenterTitle();
+      HELossC[col]->GetYaxis()->SetTitle("Energy loss - average beam energy loss [MeV]");
+      HELossC[col]->GetYaxis()->CenterTitle(); 
+    }
   }
   
   cout << "Anode dimensions: " << AnodeLength << "x" << AnodeHeight << "x" 
        << AnodeDepth << "cm^3" << endl;
   return;
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////////
 // Create the beam particle object.
@@ -950,49 +965,95 @@ void MUSIC_Simulator::SetTargetParticle(string Name)
 // Loop over events
 // 1. Set beam inital conditions (beam energy, position)
 // 2. Randomly select a reaction point (based on the beam energy range in MUSIC)
-// 3. Set initial conditions for heavy and light particles
-// 4. Propagate heavy particle and calculate energy loss in the anode elements 
-// 5. Propagate light particle and calculate energy loss in the anode elements
-// 6. Compute detector response (i.e. DE for beam + light + heavy)
-// 7. Display trace and particle trajecories
+// 3. Propagate beam to reaction point and calculate energy loss in the anode elements 
+// 4. Set initial conditions for heavy and light particles
+// 5. Propagate heavy particle and calculate energy loss in the anode elements 
+// 6. Propagate light particle and calculate energy loss in the anode elements
+// 7. Compute detector response (i.e. DE for beam + light + heavy)
+// 8. Display trace and particle trajecories
 ///////////////////////////////////////////////////////////////////////////////////
 void MUSIC_Simulator::Simulate(int SegNum, int NEvents, double MaxTime, double UserDT)
 {
+  // Verify that the anode geometry has been set
+  if (VolAnode==0) {
+    cout << "Anode geometry not specified. Use SetAnode method." << endl;
+    return;
+  }
+
   this->NEvents = NEvents;
-  // Masses (MeV/c^2)
-  double mb = Beam->Mass;
-  double mt = Target->Mass;
-  double mf = Compound->Mass;
-  double ml = Light->Mass;
-  double mh = Heavy->Mass;
   // Some kinematic variables
   double Kb_min, Kb_max, MinZ, MaxZ;
-  double zb1, zb2, Kb1, Kb2;
   // 3D trajectories
   TrajH = new TEveStraightLineSet*[NEvents];
   TrajL = new TEveStraightLineSet*[NEvents];
   // Arrays where the energy loss in each strip will be saved
-  //  double* DeltaEB_ave = CalcAverageBeamELoss(); // average beam energy loss
-  double** DeltaEB = new double*[AnodeStps];   // beam
-  double** DeltaEL = new double*[AnodeStps];   // light
-  double** DeltaEH = new double*[AnodeStps];   // heavy
+  double** DeltaEB_ave = new double*[AnodeStps];// average beam energy loss
+  double** DeltaEB = new double*[AnodeStps];    // beam
+  double** DeltaEL = new double*[AnodeStps];    // light
+  double** DeltaEH = new double*[AnodeStps];    // heavy
   for (int stp=0; stp<AnodeStps; stp++) {
+    DeltaEB_ave[stp] = new double[AnodeCols];
     DeltaEB[stp] = new double[AnodeCols];
     DeltaEL[stp] = new double[AnodeCols];
     DeltaEH[stp] = new double[AnodeCols];
+    for (int col=0; col<AnodeCols; col++) {
+      DeltaEB_ave[stp][col] = 0;
+      DeltaEB[stp][col] = 0;
+      DeltaEL[stp][col] = 0;
+      DeltaEH[stp][col] = 0;
+    }
   }
   double DeltaE;
+  double DECol;
   // For randomizing the detector response
   TF1* Gaussian = 0;
   if (EneSigma!=0) 
     Gaussian = new TF1("Gaussian","gaus",0, 100);
   // Canvas for displaying the traces
-  TCanvas* Can = new TCanvas("Can","Traces", 0, 0, 1918, 630);
+  TCanvas* Can = new TCanvas("Can","Traces", 0, 0, 960, 1018);
+  Can->Divide(1,2);
+  Can->cd(1)->SetGrid();
   HELoss->Draw();
-  Trace = new TGraph*[NEvents];
+  Can->cd(2)->SetGrid();
+  HELossB->Draw();
   
+  // Initialize traces
+  Trace = new TGraph**[NEvents];
+  TraceB = new TGraph*[AnodeCols+1];
+  for (int col=0; col<AnodeCols+1; col++) {
+    TraceB[col] = new TGraph();
+    if (col==AnodeCols) {
+      TraceB[col]->SetName("Beam trace");
+      TraceB[col]->SetLineColor(kBlack);
+    }
+    else {
+      TraceB[col]->SetName(Form("Beam trace col %d", col));
+      TraceB[col]->SetLineColor(col+2);
+    }
+  }
+
   cout << "Simulating MUSIC traces ... " << endl;
-  
+
+  SetInitialKinematics(Kb_after_window);   
+
+  // Get the average beam energy loss
+  Particle* BeamCopy = new Particle("beam copy");
+  BeamCopy->Copy(Beam);
+  BeamCopy->Print();
+  DeltaEB_ave = PropagateParticle(BeamCopy, Kb_after_window, MaxTime, UserDT); 
+  for (int stp=0; stp<AnodeStps; stp++) {
+    DeltaE = 0;
+    for (int col=0; col<AnodeCols; col++) {
+      TraceB[col]->SetPoint(stp, stp, DeltaEB_ave[stp][col]);
+      DeltaE += DeltaEB_ave[stp][col];
+    }
+    TraceB[AnodeCols]->SetPoint(stp, stp, DeltaE);
+  }
+  Can->cd(2);
+  for (int col=0; col<AnodeCols; col++)
+    TraceB[col]->Draw("l same");
+  TraceB[AnodeCols]->Draw("*l same");
+
   // Get the beam energy limits in the selected strip (assuming the
   // beam direction is parallel to the z-axis).
   MinZ = 0;
@@ -1019,7 +1080,6 @@ void MUSIC_Simulator::Simulate(int SegNum, int NEvents, double MaxTime, double U
 	DeltaEH[stp][col] = 0;
       }
     
-
     // 1. Set beam inital conditions (beam energy, position)
     SetInitialKinematics(Kb_after_window);   
 
@@ -1030,15 +1090,18 @@ void MUSIC_Simulator::Simulate(int SegNum, int NEvents, double MaxTime, double U
     double TOF = Beam->GetTimeOfFlight(0, Kb_after_window, zr/*cm*/, zr/100/*cm*/);
     cout << "Kbr = " << Kbr << "  zr = " << zr << "  tof = " << TOF << endl;
     
-    // Propagate the beam particle from the origin to the reaction point
+    // 3. Propagate the beam particle from the origin to the reaction
+    // point
     DeltaEB = PropagateParticle(Beam, evt, TOF, UserDT);
 
-    // Set the kinematics of all particles at the reaction point
+    // 4. Set the kinematics of all particles at the reaction point
     SetReactionKinematics(Kbr, zr);
 
-    // Propagate the particles and get the energy deposited in each
-    // anode segment.
+    // 5. Propagate heavy particle and calculate energy loss in the
+    // anode elements
     DeltaEH = PropagateParticle(Heavy, evt, MaxTime, UserDT);
+    // 6. Propagate light particle and calculate energy loss in the
+    // anode elements
     DeltaEL = PropagateParticle(Light, evt, MaxTime, UserDT);
 
     // Clone the particle trajectories
@@ -1047,31 +1110,51 @@ void MUSIC_Simulator::Simulate(int SegNum, int NEvents, double MaxTime, double U
       TrajL[evt] = (TEveStraightLineSet*)Light->AllTraj[evt]->Clone();
     }
 
-    // Draw the energy loss traces (detector response)
-    Trace[evt] = new TGraph();
-    Trace[evt]->SetName(Form("evt %d",evt));
+    // Create energy loss trace for this event (detector
+    // response). The last column has the energy loss deposited in the
+    // whole strip.
+    Trace[evt] = new TGraph*[AnodeCols+1];
+    for (int col=0; col<AnodeCols+1; col++) {
+      Trace[evt][col] = new TGraph();
+      if (col==AnodeCols) {
+	Trace[evt][col]->SetName(Form("evt %d total", evt));
+	Trace[evt][col]->SetLineColor(kBlack);
+      }
+      else {
+	Trace[evt][col]->SetName(Form("evt %d col %d", evt, col));
+	Trace[evt][col]->SetLineColor(col+2);
+      }
+    }
+    
+    // 7. Compute detector response (i.e. DE for beam + light + heavy)
     for (int stp=0; stp<AnodeStps; stp++) {
       DeltaE = 0;
-      for (int col=0; col<AnodeCols; col++) {	
+      for (int col=0; col<AnodeCols; col++) {
 	// Previously we were normalizing to the energy loss of the beam
 	// minus the energy loss in the the dead layer, which in this
 	// version of the code is typically strip 1.
 	//  DeltaE = DeltaEB[n] + DeltaEL[n] + DeltaEH[n] - (DeltaEB_ave[n]-DeltaEB_ave[1]);
 	// In this version, we normalize to the average energy loss of
 	// the beam in each strip.
-	DeltaE += DeltaEB[stp][col] + DeltaEL[stp][col] + DeltaEH[stp][col];// - DeltaEB_ave[n];
+	DECol = DeltaEB[stp][col] + DeltaEL[stp][col] + DeltaEH[stp][col] - DeltaEB_ave[stp][col];
+	if (EneSigma!=0 && Gaussian!=0 && DECol>0) {
+	  Gaussian->SetRange(0.0, 2*DECol);
+	  Gaussian->SetParameters(1.0, DECol, EneSigma);
+	  DECol = Gaussian->GetRandom();
+	}
+	DeltaE += DECol;
 	cout << stp << " " << col << ": " << DeltaEB[stp][col] << " " << DeltaEL[stp][col] 
-	     << " " << DeltaEH[stp][col] << endl;
+	     << " " << DeltaEH[stp][col] << endl;	
+	Trace[evt][col]->SetPoint(stp, stp, DECol);
       }
-      //cout<< "Energy loss L: "<<DeltaEL[n]<<  "Energy loss H: "<<DeltaEH[n]<<endl;
-      if (EneSigma!=0 && Gaussian!=0 && DeltaE>0) {
-	Gaussian->SetRange(0.0, 2*DeltaE);
-	Gaussian->SetParameters(1.0, DeltaE, EneSigma);
-	DeltaE = Gaussian->GetRandom();
-      }      
-      Trace[evt]->SetPoint(stp, stp, DeltaE);
+      Trace[evt][AnodeCols]->SetPoint(stp, stp, DeltaE);
     }
-    Trace[evt]->Draw("*l same");
+    
+    // 8. Display trace and particle trajecories
+    Can->cd(1);
+    for (int col=0; col<AnodeCols; col++)
+      Trace[evt][col]->Draw("l same");
+    Trace[evt][AnodeCols]->Draw("*l same");
     NTraces++;
     Can->Update();
     //Can->WaitPrimitive();
@@ -1089,7 +1172,12 @@ void MUSIC_Simulator::WriteTraces(char* FileName)
   TFile* Output = new TFile(FileName, "RECREATE");
   if (Trace!=0)
     for (int n=0; n<NTraces; n++)
-      Trace[n]->Write(Form("Trace%d",n), TObject::kOverwrite);
+      for (int col=0; col<AnodeCols; col++) {
+	if (col==AnodeCols)
+	  Trace[n][col]->Write(Form("Trace%d",n), TObject::kOverwrite);
+	else
+	  Trace[n][col]->Write(Form("Trace%dc%d",n,col), TObject::kOverwrite);
+      }
   Output->Close();
   return;
 }
