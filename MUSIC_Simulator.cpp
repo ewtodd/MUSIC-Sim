@@ -1,3 +1,5 @@
+// Methods for MUSIC_Simulator class.
+// See header file for class description and compilation instructions.
 
 #include "MUSIC_Simulator.hpp"
 
@@ -12,7 +14,7 @@ MUSIC_Simulator::MUSIC_Simulator()
   cout << "================================================================================" << endl;
   cout << "|--- MUSIC simulator ----------------------------------------------------------|" << endl;
   cout << "| Written by Daniel Santiago-Gonzalez                                          |" << endl;
-  cout << "| ver 1.1 (2016/4)                                                             |" << endl;
+  cout << "| ver 2.0 (2016/4)                                                             |" << endl;
   cout << "| To get the latest version type:                                              |" << endl;
   cout << "| git clone https://dasago@bitbucket.org/music_anl/music_simulator.git         |" << endl;
   cout << "================================================================================" << endl;
@@ -46,7 +48,7 @@ MUSIC_Simulator::MUSIC_Simulator()
   NuF = new NuclideFinder();
 
   // Geometry manager
-  Geo = new TGeoManager("Geo", "MUSIC geometry manager");  
+  Geo = new TGeoManager("Geo", "MUSIC geometry manager");
 
   // Define some materials and media
   MatVacuum = new TGeoMaterial("Vac", 0, 0, 0);

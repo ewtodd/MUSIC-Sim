@@ -1,7 +1,18 @@
-// May need libroot-math-physics-dev. Install using synaptic package manager.
-// http://packages.ubuntu.com/trusty/i386/libroot-math-physics-dev/filelist
-#ifndef MUSIC_Simulator_hpp_INCLUDED   
-#define MUSIC_Simulator_hpp_INCLUDED   
+//===============================================================================
+//--- MUSIC simulator ----------------------------------------------------------|
+// Written by Daniel Santiago-Gonzalez                                          |
+// ver 2.0 (2016/4)                                                             |
+// To get the latest version type:                                              |
+// git clone https://dasago@bitbucket.org/music_anl/music_simulator.git         |
+//                                                                              |
+// Compile by typing: root -l MakeAll.C                                         |
+//                                                                              |
+// May need libroot-math-physics-dev. Install using synaptic package manager.   |
+// http://packages.ubuntu.com/trusty/i386/libroot-math-physics-dev/filelist     |
+//===============================================================================
+
+#ifndef MUSIC_Simulator_hpp_INCLUDED
+#define MUSIC_Simulator_hpp_INCLUDED
 
 //C and C++ libraries
 #include <iostream>
@@ -54,9 +65,9 @@ public:
   void SetBeamParticle(std::string Name, int Color, std::string ELossFile, double KineticE/*MeV*/);
   //  void SetBeamSpot(double diameter);
   void SetCompoundParticle(std::string Name);
-  void SetHeavyParticle(std::string Name, int Color, std::string ELossFile, int NEexc=0, 
+  void SetHeavyParticle(std::string Name, int Color, std::string ELossFile, int NEexc=0,
 			double* Eexc=0/*MeV*/);
-  void SetLightParticle(std::string Name, int Color, std::string ELossFile); 
+  void SetLightParticle(std::string Name, int Color, std::string ELossFile);
   void SetPrintLevel(int PrintLevel);
   void SetStripEnergyResolution(float Sigma/*MeV*/);
   void SetTargetParticle(std::string Name);
@@ -127,10 +138,8 @@ private:
   // Nuclide finder
   NuclideFinder* NuF;
 
-
   static const double c = 29.9792458;  // Speed of light in cm/ns.
   static const double pi = 3.14159265359;
-
 };
 
 #endif
