@@ -116,8 +116,14 @@
   // Heavy evaporation residue (e.g. 23Na)
   MUSIC->SetHeavyParticle(heavy, kBlue, SRIMFile[3]);
 
-  // Release the Kracken!!
+  // Release the Kraken!!
   MUSIC->Simulate(Strip, NEvents, MaxTime, UserDT, 1);
+
+  // Generates a collection of traces for all angles (theta, phi) for
+  // all strips. The generated data base can be compared to
+  // experimental traces.
+  // MUSIC->SimulateAll(MaxTime, UserDT, 1);
+
   MUSIC->WriteTraces(Form("Traces_Stp%d_%s_%s.root",Strip,target.c_str(),light.c_str()));
 
 }

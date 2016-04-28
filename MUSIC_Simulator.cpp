@@ -36,6 +36,7 @@ MUSIC_Simulator::MUSIC_Simulator()
 
   // Initialize selected pointers to zero (non-zero pointers initialized below).
   Beam = 0;
+  Gaussian = 0;
   Target = 0;
   Trace = 0;
   TraceH = 0;
@@ -67,8 +68,18 @@ MUSIC_Simulator::MUSIC_Simulator()
   
   // TEveManager for drawing 3D particle trajectories
   Eve = new TEveManager(960, 1018, kTRUE, "V");
-}
 
+  // Canvas and legends for traces
+  TraceCan = new TCanvas("TraceCan","Traces", 0, 0, 960, 1018);
+  TraceCan->Divide(1,3);
+  TraceCan->cd(1)->SetGrid();
+  TraceCan->cd(2)->SetGrid();
+  TraceCan->cd(3)->SetGrid();
+  LegCol = new TLegend(0.692,0.616,0.826,0.861);
+  LegPart = new TLegend(0.692,0.616,0.826,0.861);
+  LabelKine = new TPaveText(0.152,0.679,0.437,0.875,"NDC");
+
+}
 
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -210,6 +221,114 @@ void MUSIC_Simulator::CalculateExcEnergyRange()
 
 
 ///////////////////////////////////////////////////////////////////////////////////
+// Private method, to be used in an event loop.
+///////////////////////////////////////////////////////////////////////////////////
+void MUSIC_Simulator::ComputeDetectorResponse(int evt)
+{
+  double DeltaE = 0;
+  if (evt<Particle::MaxEvents) {
+    TrajH[evt] = (TEveStraightLineSet*)Heavy->AllTraj[evt]->Clone();
+    TrajL[evt] = (TEveStraightLineSet*)Light->AllTraj[evt]->Clone();
+  }
+
+  // Loop over the anode's strips and columns
+  for (int stp=0; stp<AnodeStps; stp++) {
+    DeltaE = 0;
+    for (int col=0; col<AnodeCols+1; col++) {
+      // Previously we were normalizing to the energy loss of the
+      // beam minus the energy loss in the the dead layer, which in
+      // this version of the code is typically strip 1.  
+      // DeltaE = DeltaEB[n] + DeltaEL[n] + DeltaEH[n] - (DeltaEB_ave[n]-DeltaEB_ave[1]);
+      // In this version, we do not normalize to the average energy
+      // loss of the beam in each strip.
+      TraceH[evt][col]->SetPoint(stp, stp, DeltaEH[stp][col]);
+      TraceL[evt][col]->SetPoint(stp, stp, DeltaEL[stp][col]);
+      DeltaE = DeltaEB[stp][col] + DeltaEL[stp][col] + DeltaEH[stp][col];
+      // if (EneSigma!=0 && Gaussian!=0 && DECol>0) {
+      //   Gaussian->SetRange(0.0, 2*DECol);
+      //   Gaussian->SetParameters(1.0, DECol, EneSigma);
+      //   DECol = Gaussian->GetRandom();
+      // }
+      Trace[evt][col]->SetPoint(stp, stp, DeltaE);
+      if (PrintLevel>0)
+	cout << stp << " " << col << ": " << DeltaEB[stp][col] << " " << DeltaEL[stp][col] 
+	     << " " << DeltaEH[stp][col] << endl;
+    }
+  }
+  return;
+}
+
+///////////////////////////////////////////////////////////////////////////////////
+// Create energy loss trace for this event (detector response). The last column has
+// the energy loss deposited in the whole strip.
+///////////////////////////////////////////////////////////////////////////////////
+void MUSIC_Simulator::CreateTracesAndTrajectories(int NEvents)
+{
+  // Initialize beam traces for each column (this trace does not
+  // depend on the number of events)
+  TraceB = new TGraph*[AnodeCols+1];
+  for (int col=0; col<AnodeCols+1; col++) {
+    TraceB[col] = new TGraph();
+    if (col==AnodeCols) {
+      TraceB[col]->SetName("Beam trace");
+      TraceB[col]->SetLineColor(kBlack);
+      TraceB[col]->SetLineWidth(3);
+    }
+    else {
+      TraceB[col]->SetName(Form("Beam trace col %d", col));
+      TraceB[col]->SetLineColor(7-col);
+      TraceB[col]->SetLineStyle(2);
+      TraceB[col]->SetLineWidth(2);
+    }
+  }
+  // Initialize the rest of the traces for each column
+  Trace = new TGraph**[NEvents];
+  TraceH = new TGraph**[NEvents];
+  TraceL = new TGraph**[NEvents];
+  for (int evt=0; evt<NEvents; evt++) {
+    Trace[evt] = new TGraph*[AnodeCols+1];
+    TraceH[evt] = new TGraph*[AnodeCols+1];
+    TraceL[evt] = new TGraph*[AnodeCols+1];
+    for (int col=0; col<AnodeCols+1; col++) {
+      Trace[evt][col] = new TGraph();
+      TraceH[evt][col] = new TGraph();
+      TraceL[evt][col] = new TGraph();
+      if (col==AnodeCols) {
+	Trace[evt][col]->SetName(Form("evt %d total", evt));
+	Trace[evt][col]->SetLineColor(kBlack);
+	Trace[evt][col]->SetLineWidth(2);
+	TraceH[evt][col]->SetName(Form("evt %d total %s", evt, Heavy->Name.c_str()));
+	TraceH[evt][col]->SetLineColor(Heavy->GetColor());
+	TraceH[evt][col]->SetLineWidth(2);
+	TraceL[evt][col]->SetName(Form("evt %d total %s", evt, Light->Name.c_str()));
+	TraceL[evt][col]->SetLineColor(Light->GetColor());
+	TraceL[evt][col]->SetLineWidth(2);
+      }
+      else {
+	Trace[evt][col]->SetName(Form("evt %d col %d", evt, col));
+	Trace[evt][col]->SetLineColor(7-col);
+	Trace[evt][col]->SetLineStyle(2);
+	Trace[evt][col]->SetLineWidth(2);
+	TraceH[evt][col]->SetName(Form("evt %d col %d %s", evt, col, Heavy->Name.c_str()));
+	TraceH[evt][col]->SetLineColor(7-col);
+	TraceH[evt][col]->SetLineStyle(2);
+	TraceH[evt][col]->SetLineWidth(2);
+	TraceL[evt][col]->SetName(Form("evt %d col %d %s", evt, col, Light->Name.c_str()));
+	TraceL[evt][col]->SetLineColor(7-col);
+	TraceL[evt][col]->SetLineStyle(2);
+	TraceL[evt][col]->SetLineWidth(2);
+      }
+    }
+  }
+
+  // 3D trajectories
+  TrajH = new TEveStraightLineSet*[NEvents];
+  TrajL = new TEveStraightLineSet*[NEvents];
+  return;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////
 // Show a 3D image of MUSIC with an given transparency level into the specified
 // TEveManager object pointer.
 ///////////////////////////////////////////////////////////////////////////////////
@@ -245,6 +364,53 @@ void MUSIC_Simulator::DrawMUSIC(TEveManager* gEve, short Transparency /*From 0 t
   return;
 }
 
+
+///////////////////////////////////////////////////////////////////////////////////
+//
+///////////////////////////////////////////////////////////////////////////////////
+void MUSIC_Simulator::GenerateTraceDatabase(double MaxTime, double UserDT, int Wait)
+{
+  // Tree similar to the one used for experimental data
+  tree = new TTree("simt","Simulated MUSIC data");
+  tree->Branch("andl",  andl,     "andl[16]/F");
+  tree->Branch("andr",  andr,     "andr[16]/F");
+  //  tree->Branch("seg",   seg,      "seg[16]/F");
+  tree->Branch("stp0",  &strip0,  "stp0/F");
+  tree->Branch("stp17", &strip17, "stp17/F");
+  tree->Branch("cath",  &cathode, "cath/F");
+  // The following branches are for physical quantities that at the
+  // moment can only be obtained from the simulation
+  tree->Branch("Kl", &Kl, "Kl/F");
+  tree->Branch("Kh", &Kh, "Kh/F");
+  tree->Branch("theta_l", &theta_l, "theta_l/F");
+  tree->Branch("theta_h", &theta_h, "theta_h/F");
+  tree->Branch("phi_l",   &phi_l,   "phi_l/F");
+  tree->Branch("phi_h",   &phi_l,   "phi_h/F");
+  tree->Print();
+
+  // Number of angular steps
+  int phi_steps = 36;
+  int theta_steps = 18;
+  // Angles in radians
+  double theta = 0;
+  double phi = 0;
+
+  // Loop over all strips with a non-negative ID (defined in the
+  // argument of the SetAnode method).
+  for (int stp=0; stp<AnodeStps; stp++) {
+    if (AnodeStpID[stp]>=0) {
+      for (int ths=0; ths<theta_steps; ths++) {
+	theta = ths*pi/theta_steps;
+	for (int phs=0; phs<phi_steps; phs++) {
+	  phi = phs*2*pi/phi_steps;
+	  //Simulate(AnodeStpID[stp], NEvents, MaxTime, UserDT, Wait);
+	}
+      }
+    }
+  }
+
+  return;
+}
 
 ///////////////////////////////////////////////////////////////////////////////////
 // 
@@ -298,6 +464,7 @@ void MUSIC_Simulator::PrintCompoundEexc(double Kb, double** DeltaEB)
 
 
 ///////////////////////////////////////////////////////////////////////////////////
+// Private method, to be used in an event loop.
 // This method transports the particle from its initial position until the maximum
 // transport time has been reached or if the particle stops or if it leaves the 
 // detector volume. As the particle is propagated through the gaseous medium, 
@@ -455,8 +622,8 @@ double** MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxT
 // Title                                                                        |
 // Number of strips: #                                                          |
 // Number of columns: #                                                         |
-// Stp	Col	Name	Dx	Dy	Dz	Color	Comment                 |
-// #	#	string	#f	#f	#f	#	string (spaces allowed) |
+// Stp  Col  StpID  Name    Dx   Dy   Dz  Color	 Comment                        |
+// #    #    #	    string  #f   #f   #f  #	 string (spaces allowed)        |
 // ... (until all segments have been specified)                                 |
 //------------------------------------------------------------------------------|
 // , where '#' is meant to be replaced by an integer and '#f' by a floating point 
@@ -467,6 +634,10 @@ void MUSIC_Simulator::SetAnode(string AnodeGeomFile, short Trans)
   ifstream GeomFile;
   string line;
   int line_counter = 0;
+
+  // It's required for column description in the AnodeGeomFile to
+  // match the string below.
+  string ColDescription = "Stp	Col	StpID	Name	Dx	Dy	Dz	Color	Comment";
 
   AnodeDepth = 0;
   AnodeLength = 0;
@@ -499,18 +670,21 @@ void MUSIC_Simulator::SetAnode(string AnodeGeomFile, short Trans)
       AnodeDZ = new double*[AnodeStps];
       AnodeColor = new short*[AnodeStps];
       AnodeSegName = new string*[AnodeStps];
+      AnodeStpID = new int*[AnodeStps];
       for (int stp=0; stp<AnodeStps; stp++) {
 	AnodeDX[stp] = new double[AnodeCols];
 	AnodeDY[stp] = new double[AnodeCols];
 	AnodeDZ[stp] = new double[AnodeCols];
 	AnodeColor[stp] = new short[AnodeCols];
 	AnodeSegName[stp] = new string[AnodeCols];
+	AnodeStpID[stp] = new int[AnodeCols];
 	for (int col=0; col<AnodeCols; col++) {
 	  AnodeDX[stp][col] = 0;
 	  AnodeDY[stp][col] = 0;
 	  AnodeDZ[stp][col] = 0;
 	  AnodeColor[stp][col] = 632; // red
 	  AnodeSegName[stp][col] = "";
+	  AnodeStpID[stp][col] = -1;
 	}
       }
  
@@ -519,7 +693,7 @@ void MUSIC_Simulator::SetAnode(string AnodeGeomFile, short Trans)
       GeomFile.open(AnodeGeomFile.c_str());
       do {
 	getline(GeomFile, line);
-	if (line.find("Stp	Col	Name	Dx	Dy	Dz	Color	Comment")<line.npos)
+	if (line.find(ColDescription)<line.npos)
 	  break;
       } while (!GeomFile.eof());
       // First we need to count how many (not empty) lines are listed
@@ -536,28 +710,30 @@ void MUSIC_Simulator::SetAnode(string AnodeGeomFile, short Trans)
       GeomFile.open(AnodeGeomFile.c_str());
       do {
 	getline(GeomFile, line);
-	if (line.find("Stp	Col	Name	Dx	Dy	Dz	Color	Comment")<line.npos)
+	if (line.find(ColDescription)<line.npos)
 	  break;
       } while (!GeomFile.eof());
       // Loading parameters and printing them to confirm they have been
       // read correctly
       for (int nl=0; nl<line_counter; nl++) {
 	int stp = 0;
-	int col = 0;      
+	int col = 0;
+	int id = -1;    
 	string name;
 	double dx, dy, dz;
 	short color;
-	GeomFile >> stp >> col >> name >> dx >> dy >> dz >> color;
+	GeomFile >> stp >> col >> id >> name >> dx >> dy >> dz >> color;
 	getline(GeomFile, line); // The last column is for comments
+	AnodeStpID[stp][col] = id;
 	AnodeSegName[stp][col] = name;
 	AnodeDX[stp][col] = dx;
 	AnodeDY[stp][col] = dy;
 	AnodeDZ[stp][col] = dz;
 	AnodeColor[stp][col] = color;
 	if (PrintLevel>1)
-	  cout << nl << "\t" << AnodeSegName[stp][col] << "\t" << AnodeDX[stp][col] << "\t" 
-	       << AnodeDY[stp][col] << "\t" << AnodeDZ[stp][col] << "\t" << AnodeColor[stp][col] 
-	       << endl;
+	  cout << nl << "\t" << AnodeStpID[stp][col] << "\t" << AnodeSegName[stp][col] << "\t" 
+	       << AnodeDX[stp][col] << "\t" << AnodeDY[stp][col] << "\t" << AnodeDZ[stp][col] 
+	       << "\t" << AnodeColor[stp][col] << endl;
       }
       GeomFile.close();
     
@@ -602,6 +778,27 @@ void MUSIC_Simulator::SetAnode(string AnodeGeomFile, short Trans)
 	}
 	z0 += AnodeDZ[stp][0]/2;
       }
+
+      // Arrays where the energy loss in each strip will be saved. The
+      // last column (AnodeCols) is reserved for the summed energy
+      // loss in the other columns for that strip.
+      DeltaEB_ave = new double*[AnodeStps];// average beam energy loss
+      DeltaEB = new double*[AnodeStps];    // beam
+      DeltaEL = new double*[AnodeStps];    // light
+      DeltaEH = new double*[AnodeStps];    // heavy
+      for (int stp=0; stp<AnodeStps; stp++) {
+	DeltaEB_ave[stp] = new double[AnodeCols+1];
+	DeltaEB[stp] = new double[AnodeCols+1];
+	DeltaEL[stp] = new double[AnodeCols+1];
+	DeltaEH[stp] = new double[AnodeCols+1];
+	for (int col=0; col<AnodeCols+1; col++) {
+	  DeltaEB_ave[stp][col] = 0;
+	  DeltaEB[stp][col] = 0;
+	  DeltaEL[stp][col] = 0;
+	  DeltaEH[stp][col] = 0;
+	}
+      }
+
     } // end if (AnodeStps>0 && AnodeCols>0)
     
     HCTB = new TH2F("HCTB","Beam", AnodeStps,-0.5, AnodeStps-0.5, 400,0,5);
@@ -688,7 +885,8 @@ void MUSIC_Simulator::SetHeavyParticle(string Name, int Color, string ELossFile,
 
 
 ///////////////////////////////////////////////////////////////////////////////////
-// Establish the kinematics of the particles right after the window.
+// Private method, to be used in an event loop.  Establishes the kinematics of the
+// particles right after the window.
 ///////////////////////////////////////////////////////////////////////////////////
 void MUSIC_Simulator::SetInitialKinematics(double Kbi/*MeV*/)
 {
@@ -744,14 +942,17 @@ void MUSIC_Simulator::SetPrintLevel(int Level/*0-2*/)
     cout << "Information printing level = " << Level;
     PrintLevel = Level;
   }
-  
+  return;
 }
 
 
 ///////////////////////////////////////////////////////////////////////////////////
-// Establish the kinematics of the particles at the reaction point.
+// Private method, to be used in an event loop. Establish the kinematics of the 
+// particles at the reaction point. If theta_CM and phi_CM are both -1 (default 
+// values) then their values are assigned randomly.
 ///////////////////////////////////////////////////////////////////////////////////
-int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, double tof/*ns*/)
+int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, double tof/*ns*/,
+					   double theta_CM, double phi_CM)
 {
   int ReactionAllowed = 1;
   if (PrintLevel>0)
@@ -798,10 +999,12 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
   if (PrintLevel>0)
     cout << "Eexc(" << Compound->Name << ") = " << sqrt(Ptot*Ptot) - mc << " MeV" << endl;
 
-  // Randomly select the scattering angle in the center of mass, then
-  // go to the laboratory reference frame.
-  double theta_CM = acos(Rdm->Uniform(-1,1));
-  double phi_CM = Rdm->Uniform(-pi,pi);
+  // If the user did not specify the value of theta and phi, randomly
+  // select the scattering angle in the center of mass.
+  if (theta_CM==-1 && phi_CM==-1) {
+    theta_CM = acos(Rdm->Uniform(-1,1));
+    phi_CM = Rdm->Uniform(-pi,pi);
+  }
   if (PrintLevel>0)
     cout << "theta_cm=" << theta_CM*180/pi << "   phi_cm=" << phi_CM*180/pi << endl;
   
@@ -813,6 +1016,7 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
     Heavy->SetX(tof, 0, 0, zr);
     ReactionAllowed = 0;
   }
+  // In this case, the reaction is energetically allowed.
   else {
     // Final momentum in the CM reference frame (Ptot*Ptot is an invariant quantity).
     double pf_CM = sqrt((Ptot*Ptot - pow(ml+mh,2))*(Ptot*Ptot - pow(ml-mh,2))/(4*(Ptot*Ptot)));
@@ -851,6 +1055,7 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
 void MUSIC_Simulator::SetStripEnergyResolution(float Sigma)
 {
   EneSigma = Sigma;
+  Gaussian = new TF1("Gaussian","gaus",0, 100);
   return;
 }
 
@@ -869,6 +1074,8 @@ void MUSIC_Simulator::SetTargetParticle(string Name)
 }
 
 
+
+
 ///////////////////////////////////////////////////////////////////////////////////
 // Core methode of this class, where the simulation takes place. Logic:
 // Loop over events
@@ -881,78 +1088,22 @@ void MUSIC_Simulator::SetTargetParticle(string Name)
 // 7. Compute detector response (i.e. DE for beam + light + heavy)
 // 8. Display trace and particle trajecories
 ///////////////////////////////////////////////////////////////////////////////////
-void MUSIC_Simulator::Simulate(int SegNum, int NEvents, double MaxTime, double UserDT, int Wait)
+void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double UserDT, int Wait)
 {
   // Verify that the anode geometry has been set
   if (VolAnode==0) {
     cout << "Anode geometry not specified. Use SetAnode method." << endl;
     return;
   }
-
-  this->NEvents = NEvents;
-  // Some kinematic variables
-  double Kb_min, Kb_max, MinZ, MaxZ;
-  // 3D trajectories
-  TrajH = new TEveStraightLineSet*[NEvents];
-  TrajL = new TEveStraightLineSet*[NEvents];
-
-  // Arrays where the energy loss in each strip will be saved. The
-  // last column (AnodeCols) is reserved for the summed energy loss in
-  // the other columns for that strip.
-  double** DeltaEB_ave = new double*[AnodeStps];// average beam energy loss
-  double** DeltaEB = new double*[AnodeStps];    // beam
-  double** DeltaEL = new double*[AnodeStps];    // light
-  double** DeltaEH = new double*[AnodeStps];    // heavy
-  for (int stp=0; stp<AnodeStps; stp++) {
-    DeltaEB_ave[stp] = new double[AnodeCols+1];
-    DeltaEB[stp] = new double[AnodeCols+1];
-    DeltaEL[stp] = new double[AnodeCols+1];
-    DeltaEH[stp] = new double[AnodeCols+1];
-    for (int col=0; col<AnodeCols+1; col++) {
-      DeltaEB_ave[stp][col] = 0;
-      DeltaEB[stp][col] = 0;
-      DeltaEL[stp][col] = 0;
-      DeltaEH[stp][col] = 0;
-    }
-  }
-  double DeltaE;
-
-  // For randomizing the detector response
-  TF1* Gaussian = 0;
-  if (EneSigma!=0) 
-    Gaussian = new TF1("Gaussian","gaus",0, 100);
-  // Canvas for displaying the traces
-  TCanvas* Can = new TCanvas("Can","Traces", 0, 0, 960, 1018);
-  Can->Divide(1,3);
-  Can->cd(3)->SetGrid();
-  HCTB->Draw();
-  TLegend* LegCol = new TLegend(0.692,0.616,0.826,0.861);
-  TLegend* LegPart = new TLegend(0.692,0.616,0.826,0.861);
-  TPaveText* LabelKine = new TPaveText(0.152,0.679,0.437,0.875,"NDC");
-
   
-  // Initialize traces
-  Trace = new TGraph**[NEvents];
-  TraceH = new TGraph**[NEvents];
-  TraceL = new TGraph**[NEvents];
-  TraceB = new TGraph*[AnodeCols+1];
-  for (int col=0; col<AnodeCols+1; col++) {
-    TraceB[col] = new TGraph();
-    if (col==AnodeCols) {
-      TraceB[col]->SetName("Beam trace");
-      TraceB[col]->SetLineColor(kBlack);
-      TraceB[col]->SetLineWidth(3);
-    }
-    else {
-      TraceB[col]->SetName(Form("Beam trace col %d", col));
-      TraceB[col]->SetLineColor(7-col);
-      TraceB[col]->SetLineStyle(2);
-      TraceB[col]->SetLineWidth(2);
-    }
-  }
+  this->NEvents = NEvents;
 
+  // Create new traces and trajectories (objectrs) for visualizing the
+  // detector response
+  CreateTracesAndTrajectories(NEvents);
+  
   cout << "Simulating MUSIC traces ... " << endl;
-
+  
   SetInitialKinematics(Kb_after_window);   
 
   // Get the average beam energy loss and print the exc energy of the
@@ -965,19 +1116,27 @@ void MUSIC_Simulator::Simulate(int SegNum, int NEvents, double MaxTime, double U
   for (int stp=0; stp<AnodeStps; stp++)
     for (int col=0; col<AnodeCols+1; col++) 
       TraceB[col]->SetPoint(stp, stp, DeltaEB_ave[stp][col]);
-  Can->cd(3);
+  // Draw the beam trace in the 3rd pad (over a background histogram)
+  TraceCan->cd(3);
+  HCTB->Draw();
   for (int col=0; col<AnodeCols; col++)
     TraceB[col]->Draw("l same");
   TraceB[AnodeCols]->Draw("*l same");
   PrintCompoundEexc(Kb_after_window, DeltaEB_ave);
 
+  //-------------------------------------------------------------------------------
+  // Some kinematic variables
+  double Kb_min, Kb_max, MinZ, MaxZ;
+  
   // Get the beam energy limits in the selected strip (assuming the
   // beam direction is parallel to the z-axis).
   MinZ = 0;
   MaxZ = AnodeDZ[0][0];
-  for (int n=1; n<=SegNum; n++) {
-    MinZ += AnodeDZ[n-1][0];
-    MaxZ += AnodeDZ[n][0];
+  for (int stp=1; stp<AnodeStps; stp++) {
+    MinZ += AnodeDZ[stp-1][0];
+    MaxZ += AnodeDZ[stp][0];
+    if (AnodeStpID[stp][0]==StpID)
+      break;
   }
   if (PrintLevel>0)
     cout << "\nMinZ = " << MinZ << "    MaxZ = "<< MaxZ << endl;
@@ -987,14 +1146,15 @@ void MUSIC_Simulator::Simulate(int SegNum, int NEvents, double MaxTime, double U
     cout << "MaxKb = " << Kb_max << "    MinKb = "<< Kb_min << endl;
   
   //-------------------------------------------------------------------------------
+
   // Event for-loop
   for (int evt=0; evt<NEvents; evt++) {
     if (PrintLevel>0)
       cout << "\n***************** Event " << evt << "\n" << endl;
     
-    Can->cd(1)->SetGrid();
+    TraceCan->cd(1);
     HCT->Draw();
-    Can->cd(2)->SetGrid();
+    TraceCan->cd(2);
     HPT->Draw();
     
     // Reset the detector response
@@ -1027,18 +1187,7 @@ void MUSIC_Simulator::Simulate(int SegNum, int NEvents, double MaxTime, double U
 	   << " (Kbr= " << Kbr << " MeV)." << endl;
       continue;
     }
-    // Update the kinematics label    
-    LabelKine->Clear();
-    LabelKine->AddText("Kinematics");
-    LabelKine->AddLine(0.0,0.76,1.0,0.76);
-    LabelKine->AddText(Form("beam: K=%.2f MeV  z_{r}=%.2f cm  tof=%.1f ns", Kbr, zr, TOF));
-    LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
-			    Heavy->Name.c_str(), Heavy->GetKE(), Heavy->GetTheta()*180/pi,
-			    Heavy->GetPhi()*180/pi));
-    LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
-			    Light->Name.c_str(), Light->GetKE(), Light->GetTheta()*180/pi,
-			    Light->GetPhi()*180/pi));
-    
+
     // 5. Propagate heavy particle and calculate energy loss in the
     // anode elements
     DeltaEH = PropagateParticle(Heavy, evt, MaxTime, UserDT);
@@ -1049,131 +1198,94 @@ void MUSIC_Simulator::Simulate(int SegNum, int NEvents, double MaxTime, double U
 
     // 7. Compute detector response (i.e. DE for beam + light + heavy)
     // Clone the particle trajectories
-    if (evt<Particle::MaxEvents) {
-      TrajH[evt] = (TEveStraightLineSet*)Heavy->AllTraj[evt]->Clone();
-      TrajL[evt] = (TEveStraightLineSet*)Light->AllTraj[evt]->Clone();
-    }
-    // Create energy loss trace for this event (detector
-    // response). The last column has the energy loss deposited in the
-    // whole strip.
-    Trace[evt] = new TGraph*[AnodeCols+1];
-    TraceH[evt] = new TGraph*[AnodeCols+1];
-    TraceL[evt] = new TGraph*[AnodeCols+1];
-    for (int col=0; col<AnodeCols+1; col++) {
-      Trace[evt][col] = new TGraph();
-      TraceH[evt][col] = new TGraph();
-      TraceL[evt][col] = new TGraph();
-      if (col==AnodeCols) {
-	Trace[evt][col]->SetName(Form("evt %d total", evt));
-	Trace[evt][col]->SetLineColor(kBlack);
-	Trace[evt][col]->SetLineWidth(2);
-	TraceH[evt][col]->SetName(Form("evt %d total %s", evt, Heavy->Name.c_str()));
-	TraceH[evt][col]->SetLineColor(Heavy->GetColor());
-	TraceH[evt][col]->SetLineWidth(2);
-	TraceL[evt][col]->SetName(Form("evt %d total %s", evt, Light->Name.c_str()));
-	TraceL[evt][col]->SetLineColor(Light->GetColor());
-	TraceL[evt][col]->SetLineWidth(2);
-      }
-      else {
-	Trace[evt][col]->SetName(Form("evt %d col %d", evt, col));
-	Trace[evt][col]->SetLineColor(7-col);
-	Trace[evt][col]->SetLineStyle(2);
-	Trace[evt][col]->SetLineWidth(2);
-	TraceH[evt][col]->SetName(Form("evt %d col %d %s", evt, col, Heavy->Name.c_str()));
-	TraceH[evt][col]->SetLineColor(7-col);
-	TraceH[evt][col]->SetLineStyle(2);
-	TraceH[evt][col]->SetLineWidth(2);
-	TraceL[evt][col]->SetName(Form("evt %d col %d %s", evt, col, Light->Name.c_str()));
-	TraceL[evt][col]->SetLineColor(7-col);
-	TraceL[evt][col]->SetLineStyle(2);
-	TraceL[evt][col]->SetLineWidth(2);
-      }
-    }
-    // Loop over the anode's strips and columns
-    for (int stp=0; stp<AnodeStps; stp++) {
-      DeltaE = 0;
-      for (int col=0; col<AnodeCols+1; col++) {
-	// Previously we were normalizing to the energy loss of the
-	// beam minus the energy loss in the the dead layer, which in
-	// this version of the code is typically strip 1.  
-	// DeltaE = DeltaEB[n] + DeltaEL[n] + DeltaEH[n] - (DeltaEB_ave[n]-DeltaEB_ave[1]);
-	// In this version, we do not normalize to the average energy
-	// loss of the beam in each strip.
-	TraceH[evt][col]->SetPoint(stp, stp, DeltaEH[stp][col]);
-	TraceL[evt][col]->SetPoint(stp, stp, DeltaEL[stp][col]);
-	DeltaE = DeltaEB[stp][col] + DeltaEL[stp][col] + DeltaEH[stp][col];
-	// if (EneSigma!=0 && Gaussian!=0 && DECol>0) {
-	//   Gaussian->SetRange(0.0, 2*DECol);
-	//   Gaussian->SetParameters(1.0, DECol, EneSigma);
-	//   DECol = Gaussian->GetRandom();
-	// }
-	Trace[evt][col]->SetPoint(stp, stp, DeltaE);
-	if (PrintLevel>0)
-	  cout << stp << " " << col << ": " << DeltaEB[stp][col] << " " << DeltaEL[stp][col] 
-	       << " " << DeltaEH[stp][col] << endl;
-      }
-    }
+    ComputeDetectorResponse(evt);
     
-    // 8. Display trace and particle trajecories    
-    short C,S,W;
-    if (Light!=0 && Light->SaveTrajectory) {
-      Light->GetTrajectoryAtt(C,S,W);
-      TrajL[evt]->SetLineColor(C);
-      TrajL[evt]->SetLineStyle(S);
-      TrajL[evt]->SetLineWidth(W);
-      Eve->AddElement(TrajL[evt]);
-    }
-    if (Heavy!=0 && Heavy->SaveTrajectory) {
-      Heavy->GetTrajectoryAtt(C,S,W);
-      TrajH[evt]->SetLineColor(C);
-      TrajH[evt]->SetLineStyle(S);
-      TrajH[evt]->SetLineWidth(W);
-      Eve->AddElement(TrajH[evt]);
-    } 
-    Eve->Redraw3D(kTRUE);
-    // Traces of energy loss in columns as a function of the strip
-    // number.
-    Can->cd(1);
-    for (int col=0; col<AnodeCols; col++)
-      Trace[evt][col]->Draw("l same");
-    Trace[evt][AnodeCols]->Draw("*l same");
-    // Legend
-    if (LegCol->GetNRows()==0) {
-      LegCol->AddEntry(Trace[evt][AnodeCols],"All columns","l");
-      for (int col=0; col<AnodeCols; col++)
-	LegCol->AddEntry(Trace[evt][col], Form("Column %d", col),"l");
-      Can->cd(3);
-      LegCol->Draw();
-      Can->cd(1);      
-    }
-    LegCol->Draw();
-    // Traces of particles' energy loss and total.
-    Can->cd(2);
-    // Legend
-    if (LegPart->GetNRows()==0) {
-      LegPart->AddEntry(Trace[evt][AnodeCols], "All particles", "l");
-      LegPart->AddEntry(TraceH[evt][AnodeCols], Form("%s",Heavy->Name.c_str()), "l");
-      LegPart->AddEntry(TraceL[evt][AnodeCols], Form("%s",Light->Name.c_str()), "l");
-    }
-    LegPart->Draw();
-    LabelKine->Draw();
-    TraceH[evt][AnodeCols]->Draw("l same");
-    TraceL[evt][AnodeCols]->Draw("l same");
-    Trace[evt][AnodeCols]->Draw("*l same");
+    // 8. Display trace and particle trajecories   
+    UpdateVisuals(evt, Kbr, zr, TOF, Wait);
+ 
     NTraces++;
-    Can->Update();
-    if (Wait==1)
-      Can->WaitPrimitive();
-    // Remove the 3D trajecories. Make space for the trajectories of
-    // the next event, but don't remove the ones of the last event.
-    if (evt<NEvents-1) {
-      if (Light!=0 && Light->SaveTrajectory)
-	Eve->RemoveElement(TrajL[evt], (TEveElement*)Eve->GetCurrentEvent());
-      if (Heavy!=0 && Heavy->SaveTrajectory)
-	Eve->RemoveElement(TrajH[evt], (TEveElement*)Eve->GetCurrentEvent());
-    }
   }
   
+  return;
+}
+
+///////////////////////////////////////////////////////////////////////////////////
+// Private method, to be used in an event loop.
+///////////////////////////////////////////////////////////////////////////////////
+void MUSIC_Simulator::UpdateVisuals(int evt, double Kbr, double zr, double TOF, int Wait)
+{
+  // 3D stuff
+  short C,S,W;
+  if (Light!=0 && Light->SaveTrajectory) {
+    Light->GetTrajectoryAtt(C,S,W);
+    TrajL[evt]->SetLineColor(C);
+    TrajL[evt]->SetLineStyle(S);
+    TrajL[evt]->SetLineWidth(W);
+    Eve->AddElement(TrajL[evt]);
+  }
+  if (Heavy!=0 && Heavy->SaveTrajectory) {
+    Heavy->GetTrajectoryAtt(C,S,W);
+    TrajH[evt]->SetLineColor(C);
+    TrajH[evt]->SetLineStyle(S);
+    TrajH[evt]->SetLineWidth(W);
+    Eve->AddElement(TrajH[evt]);
+  } 
+  Eve->Redraw3D(kTRUE);
+
+  // 2D stuff
+  // Traces of energy loss in columns as a function of the strip
+  // number.
+  TraceCan->cd(1);
+  for (int col=0; col<AnodeCols; col++)
+    Trace[evt][col]->Draw("l same");
+  Trace[evt][AnodeCols]->Draw("*l same");
+  // Legend
+  if (LegCol->GetNRows()==0) {
+    LegCol->AddEntry(Trace[evt][AnodeCols],"All columns","l");
+    for (int col=0; col<AnodeCols; col++)
+      LegCol->AddEntry(Trace[evt][col], Form("Column %d", col),"l");
+    TraceCan->cd(3);
+    LegCol->Draw();
+    TraceCan->cd(1);      
+  }
+  LegCol->Draw();
+  // Traces of particles' energy loss and total.
+  TraceCan->cd(2);
+  // Legend
+  if (LegPart->GetNRows()==0) {
+    LegPart->AddEntry(Trace[evt][AnodeCols], "All particles", "l");
+    LegPart->AddEntry(TraceH[evt][AnodeCols], Form("%s",Heavy->Name.c_str()), "l");
+    LegPart->AddEntry(TraceL[evt][AnodeCols], Form("%s",Light->Name.c_str()), "l");
+  }
+  LegPart->Draw();
+  // Update the kinematics label and then draw it
+  LabelKine->Clear();
+  LabelKine->AddText("Kinematics");
+  LabelKine->AddLine(0.0,0.76,1.0,0.76);
+  LabelKine->AddText(Form("beam: K=%.2f MeV  z_{r}=%.2f cm  tof=%.1f ns", Kbr, zr, TOF));
+  LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
+			  Heavy->Name.c_str(), Heavy->GetKE(), Heavy->GetTheta()*180/pi,
+			  Heavy->GetPhi()*180/pi));
+  LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
+			  Light->Name.c_str(), Light->GetKE(), Light->GetTheta()*180/pi,
+			  Light->GetPhi()*180/pi));
+  LabelKine->Draw();
+  // Draw traces
+  TraceH[evt][AnodeCols]->Draw("l same");
+  TraceL[evt][AnodeCols]->Draw("l same");
+  Trace[evt][AnodeCols]->Draw("*l same");
+  TraceCan->Update();
+  if (Wait==1)
+    TraceCan->WaitPrimitive();
+
+  // Remove the 3D trajecories. Make space for the trajectories of
+  // the next event, but don't remove the ones of the last event.
+  if (evt<NEvents-1) {
+    if (Light!=0 && Light->SaveTrajectory)
+      Eve->RemoveElement(TrajL[evt], (TEveElement*)Eve->GetCurrentEvent());
+    if (Heavy!=0 && Heavy->SaveTrajectory)
+      Eve->RemoveElement(TrajH[evt], (TEveElement*)Eve->GetCurrentEvent());
+  }
   return;
 }
 

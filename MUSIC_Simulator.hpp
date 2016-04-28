@@ -60,7 +60,7 @@ public:
   MUSIC_Simulator();
   void CalculateCMEnergyRange();   // <- Do we need this?
   void CalculateExcEnergyRange();  // <- Do we need this?
-  void DrawMUSIC(TEveManager* gEve, short Transparency /*From 0 to 100*/);
+  void GenerateTraceDatabase(double MaxTime, double UserDT, int Wait=0);
   void SetAnode(std::string AnodeGeomFile, short Trans/*From 0 to 100*/);
   void SetBeamParticle(std::string Name, int Color, std::string ELossFile, double KineticE/*MeV*/);
   //  void SetBeamSpot(double diameter);
@@ -71,15 +71,19 @@ public:
   void SetPrintLevel(int PrintLevel);
   void SetStripEnergyResolution(float Sigma/*MeV*/);
   void SetTargetParticle(std::string Name);
-  void Simulate(int StpNum, int NEvents, double MaxTime, double UserDT, int Wait=0);
+  void Simulate(int StpID, int NEvents, double MaxTime, double UserDT, int Wait=0);
   void WriteTraces(char* FileName);
 
 private:
-  void SetInitialKinematics(double Kbi);
-  int SetReactionKinematics(double Kbr, double zr, double tof);
-  double** PropagateParticle(Particle* PO, int Event, double MaxTime, double UserDT);
+  void ComputeDetectorResponse(int event);
+  void CreateTracesAndTrajectories(int NEvents);
+  void DrawMUSIC(TEveManager* gEve, short Transparency /*From 0 to 100*/);
   void PrintCompoundEexc(double Kb, double** DeltaEB);
-
+  double** PropagateParticle(Particle* PO, int Event, double MaxTime, double UserDT);
+  void SetInitialKinematics(double Kbi);
+  int SetReactionKinematics(double Kbr, double zr, double tof, double theta_CM=-1, double phi_CM=-1);
+  void UpdateVisuals(int event, double Kbr, double zr, double TOF, int Wait=0);
+  
   // Useful random number.
   TRandom3* Rdm;
 
@@ -92,6 +96,12 @@ private:
   double Kb_after_window;
   double EneSigma;
 
+  // Arrays where the energy loss in each strip will be saved.
+  double** DeltaEB_ave;// average beam energy loss
+  double** DeltaEB;    // beam
+  double** DeltaEL;    // light
+  double** DeltaEH;    // heavy
+  
   std::string Name;
 
   int PrintLevel;
@@ -113,13 +123,21 @@ private:
   TGraph** TraceB;
   int NTraces;
 
+  TF1* Gaussian;   // For randomizing the detector response
+
   int NEvents;
+
+  // Visual stuff
   TEveStraightLineSet** TrajH;
   TEveStraightLineSet** TrajL;
   TEveManager* Eve;
-  TEveGeoTopNode* TopNode;
+  TCanvas* TraceCan;
+  TLegend* LegCol;
+  TLegend* LegPart;
+  TPaveText* LabelKine;
 
-  // Geometry stuff.
+
+  // Geometry stuff
   int AnodeStps;
   int AnodeCols;
   double AnodeDepth;  // distance along z-axis
@@ -130,14 +148,30 @@ private:
   double** AnodeDY;
   double** AnodeDZ;
   std::string** AnodeSegName;
+  int** AnodeStpID;
   TGeoManager* Geo;
   TGeoMaterial* MatVacuum;
   TGeoMedium* Vacuum;
   TGeoVolume*** VolAnode;
   TGeoVolume* VolTop;
- 
+  TEveGeoTopNode* TopNode;
+  
   // Nuclide finder
   NuclideFinder* NuF;
+
+  // TTree stuff similar to the one used for experimental data.
+  TTree* tree;
+  float strip0;
+  float andl[16];
+  float andr[16];
+  float strip17;
+  float cathode;
+  float Kl;
+  float Kh;
+  float theta_l;
+  float theta_h;
+  float phi_l;
+  float phi_h;
 
   static const double c = 29.9792458;  // Speed of light in cm/ns.
   static const double pi = 3.14159265359;
