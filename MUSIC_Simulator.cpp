@@ -79,6 +79,18 @@ MUSIC_Simulator::MUSIC_Simulator()
   LegPart = new TLegend(0.692,0.616,0.826,0.861);
   LabelKine = new TPaveText(0.152,0.679,0.437,0.875,"NDC");
 
+  
+  // Arrays for the TTree
+  SimTree = 0;
+  andr = new float[ExpAnodeStps];
+  andl = new float[ExpAnodeStps];
+  seg = new int[ExpAnodeStps];
+  for (int stp=0; stp<ExpAnodeStps; stp++) {
+    andr[stp] = 0;
+    andl[stp] = 0;
+    seg[stp] = -1;
+  }
+  
 }
 
 
@@ -230,6 +242,17 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt)
     TrajH[evt] = (TEveStraightLineSet*)Heavy->AllTraj[evt]->Clone();
     TrajL[evt] = (TEveStraightLineSet*)Light->AllTraj[evt]->Clone();
   }
+  
+  // Reset the SimTree leaves
+  if (SimTree!=0) {
+    cathode = 0;
+    strip0 = 0;
+    strip17 = 0;
+    for (int stp=0; stp<ExpAnodeStps; stp++) {
+      andl[stp] = 0;
+      andr[stp] = 0;
+    }
+  }
 
   // Loop over the anode's strips and columns
   for (int stp=0; stp<AnodeStps; stp++) {
@@ -244,6 +267,25 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt)
       TraceH[evt][col]->SetPoint(stp, stp, DeltaEH[stp][col]);
       TraceL[evt][col]->SetPoint(stp, stp, DeltaEL[stp][col]);
       DeltaE = DeltaEB[stp][col] + DeltaEL[stp][col] + DeltaEH[stp][col];
+
+      // Fill tree leafs
+      if (SimTree!=0) {
+	int stpid = AnodeStpID[stp][col];
+	if (stpid>=0) {
+	  seg[stpid-1] = stpid;
+	  cathode += DeltaE;
+	  if (stpid==0)
+	    strip0 += DeltaE;
+	  else if (stpid<17) {
+	    if (col==0) 
+	      andr[stpid-1] += DeltaE;
+	    else if (col==1)
+	      andl[stpid-1] += DeltaE;
+	  }
+	  else if (stpid==17)
+	    strip17 += DeltaE;	
+	}
+      }
       // if (EneSigma!=0 && Gaussian!=0 && DECol>0) {
       //   Gaussian->SetRange(0.0, 2*DECol);
       //   Gaussian->SetParameters(1.0, DECol, EneSigma);
@@ -255,6 +297,7 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt)
 	     << " " << DeltaEH[stp][col] << endl;
     }
   }
+
   return;
 }
 
@@ -368,46 +411,172 @@ void MUSIC_Simulator::DrawMUSIC(TEveManager* gEve, short Transparency /*From 0 t
 ///////////////////////////////////////////////////////////////////////////////////
 //
 ///////////////////////////////////////////////////////////////////////////////////
-void MUSIC_Simulator::GenerateTraceDatabase(double MaxTime, double UserDT, int Wait)
+void MUSIC_Simulator::GenerateTraceDatabase(string FileName, double MaxTime, double UserDT, int Wait)
 {
+  // Verify that the anode geometry has been set
+  if (VolAnode==0) {
+    cout << "Anode geometry not specified. Use SetAnode method." << endl;
+    return;
+  }
+  
+  TFile* TDB = new TFile(FileName.c_str(), "recreate");
+
   // Tree similar to the one used for experimental data
-  tree = new TTree("simt","Simulated MUSIC data");
-  tree->Branch("andl",  andl,     "andl[16]/F");
-  tree->Branch("andr",  andr,     "andr[16]/F");
-  //  tree->Branch("seg",   seg,      "seg[16]/F");
-  tree->Branch("stp0",  &strip0,  "stp0/F");
-  tree->Branch("stp17", &strip17, "stp17/F");
-  tree->Branch("cath",  &cathode, "cath/F");
+  SimTree = new TTree("simt","Simulated MUSIC data");
+  SimTree->Branch("andl",  andl,     "andl[16]/F");
+  SimTree->Branch("andr",  andr,     "andr[16]/F");
+  SimTree->Branch("seg",   seg,      "seg[16]/F");
+  SimTree->Branch("stp0",  &strip0,  "stp0/F");
+  SimTree->Branch("stp17", &strip17, "stp17/F");
+  SimTree->Branch("cath",  &cathode, "cath/F");
   // The following branches are for physical quantities that at the
   // moment can only be obtained from the simulation
-  tree->Branch("Kl", &Kl, "Kl/F");
-  tree->Branch("Kh", &Kh, "Kh/F");
-  tree->Branch("theta_l", &theta_l, "theta_l/F");
-  tree->Branch("theta_h", &theta_h, "theta_h/F");
-  tree->Branch("phi_l",   &phi_l,   "phi_l/F");
-  tree->Branch("phi_h",   &phi_l,   "phi_h/F");
-  tree->Print();
+  SimTree->Branch("Kl", &Kl, "Kl/F");
+  SimTree->Branch("Kh", &Kh, "Kh/F");
+  SimTree->Branch("theta_l", &theta_l, "theta_l/F");
+  SimTree->Branch("theta_h", &theta_h, "theta_h/F");
+  SimTree->Branch("phi_l",   &phi_l,   "phi_l/F");
+  SimTree->Branch("phi_h",   &phi_l,   "phi_h/F");
+  if (PrintLevel>0)
+    SimTree->Print();
 
   // Number of angular steps
-  int phi_steps = 36;
-  int theta_steps = 18;
+  int phi_steps = 4;
+  int theta_steps = 4;
   // Angles in radians
   double theta = 0;
   double phi = 0;
+  
+  NEvents = phi_steps*theta_steps*AnodeStps;
+  NTraces = 0;
+    
+  // Create new traces and trajectories (objectrs) for visualizing the
+  // detector response
+  CreateTracesAndTrajectories(NEvents);
+  
+  cout << "Simulating MUSIC traces ... " << endl;
+  
+  SetInitialKinematics(Kb_after_window);   
+
+  // Get the average beam energy loss and print the exc energy of the
+  // compound nucleus sampled by each strip.
+  Particle* BeamCopy = new Particle("beam copy");
+  BeamCopy->Copy(Beam);
+  if (PrintLevel>0)
+    BeamCopy->Print();
+  DeltaEB_ave = PropagateParticle(BeamCopy, Kb_after_window, MaxTime, UserDT); 
+  for (int stp=0; stp<AnodeStps; stp++)
+    for (int col=0; col<AnodeCols+1; col++) 
+      TraceB[col]->SetPoint(stp, stp, DeltaEB_ave[stp][col]);
+  // Draw the beam trace in the 3rd pad (over a background histogram)
+  TraceCan->cd(3);
+  HCTB->Draw();
+  for (int col=0; col<AnodeCols; col++)
+    TraceB[col]->Draw("l same");
+  TraceB[AnodeCols]->Draw("*l same");
+  PrintCompoundEexc(Kb_after_window, DeltaEB_ave);
+
+  //-------------------------------------------------------------------------------
+  // Some kinematic variables
+  double Kb_min, Kb_max, MinZ, MaxZ;
+  int evt = 0; 
+  double theta_min = 0.01;
+  double theta_max = pi-0.01;
+  double phi_min = 0.01;
+  double phi_max = 2*pi-0.01;
 
   // Loop over all strips with a non-negative ID (defined in the
   // argument of the SetAnode method).
-  for (int stp=0; stp<AnodeStps; stp++) {
-    if (AnodeStpID[stp]>=0) {
+  for (int stp_base=0; stp_base<AnodeStps; stp_base++) {
+    if (AnodeStpID[stp_base][0]>=0) {
+      
+      // Get the beam energy limits in the selected strip (assuming
+      // the beam direction is parallel to the z-axis).
+      MinZ = 0;
+      MaxZ = AnodeDZ[0][0];
+      for (int stp=1; stp<AnodeStps; stp++) {
+	MinZ += AnodeDZ[stp-1][0];
+	MaxZ += AnodeDZ[stp][0];
+	if (AnodeStpID[stp][0]==AnodeStpID[stp_base][0])
+	  break;
+      }
+      if (PrintLevel>0)
+	cout << "\nMinZ = " << MinZ << "    MaxZ = "<< MaxZ << endl;
+      Kb_max = Beam->GetFinalEnergy(0, Kb_after_window, MinZ, 0.001/*step size in cm*/);
+      Kb_min = Beam->GetFinalEnergy(0, Kb_after_window, MaxZ, 0.001/*step size in cm*/);
+      if (PrintLevel>0)
+	cout << "MaxKb = " << Kb_max << "    MinKb = "<< Kb_min << endl;
+      
       for (int ths=0; ths<theta_steps; ths++) {
-	theta = ths*pi/theta_steps;
+	theta = ths*(theta_max - theta_min)/(theta_steps - 1) + theta_min;
 	for (int phs=0; phs<phi_steps; phs++) {
-	  phi = phs*2*pi/phi_steps;
-	  //Simulate(AnodeStpID[stp], NEvents, MaxTime, UserDT, Wait);
+	  phi = phs*(phi_max - phi_min)/(phi_steps - 1) + phi_min;
+	  
+	  if (PrintLevel>0)
+	    cout << "\n***************** Event " << evt << "\n" << endl;
+	  
+	  TraceCan->cd(1);
+	  HCT->Draw();
+	  TraceCan->cd(2);
+	  HPT->Draw();
+	  
+	  // Reset the detector response
+	  for (int stp=0; stp<AnodeStps; stp++) 
+	    for (int col=0; col<AnodeCols+1; col++) {
+	      DeltaEB[stp][col] = 0;
+	      DeltaEL[stp][col] = 0;
+	      DeltaEH[stp][col] = 0;
+	    }
+	  
+	  // 1. Set beam inital conditions (beam energy, position)
+	  SetInitialKinematics(Kb_after_window);   
+	  
+	  // Within the selected strip randomly select the energy at which the beam particle
+	  // interacts with the target and from this value calculate the reaction z.
+	  double Kbr = Rdm->Uniform(Kb_min, Kb_max);
+	  double zr = Beam->GetPathLength(0, Kb_after_window, Kbr, 0.01/*time step in ns*/);
+	  double TOF = Beam->GetTimeOfFlight(0, Kb_after_window, zr/*cm*/, zr/100/*cm*/);
+	  if (PrintLevel>0)
+	    cout << "Kbr = " << Kbr << "  zr = " << zr << "  tof = " << TOF << endl;
+	  
+	  // 3. Propagate the beam particle from the origin to the reaction
+	  // point
+	  DeltaEB = PropagateParticle(Beam, evt, TOF, UserDT);
+	  
+	  // 4. Set the kinematics of all particles at the reaction point
+	  int ReacAllowed = SetReactionKinematics(Kbr, zr, TOF, theta, phi);
+	  if (ReacAllowed==0) {
+	    cout << "Warninig: reaction energetically not allowed for event " << evt 
+		 << " (Kbr= " << Kbr << " MeV)." << endl;
+	    continue;
+	  }
+	  
+	  // 5. Propagate heavy particle and calculate energy loss in the
+	  // anode elements
+	  DeltaEH = PropagateParticle(Heavy, evt, MaxTime, UserDT);
+	  
+	  // 6. Propagate light particle and calculate energy loss in the
+	  // anode elements
+	  DeltaEL = PropagateParticle(Light, evt, MaxTime, UserDT);
+	  
+	  // 7. Compute detector response (i.e. DE for beam + light + heavy)
+	  // Clone the particle trajectories
+	  ComputeDetectorResponse(evt);
+	  SimTree->Fill();
+	  
+	  // 8. Display trace and particle trajecories   
+	  UpdateVisuals(evt, Kbr, zr, TOF, Wait);	  
+
+	  NTraces++;
+	  evt++;
 	}
       }
     }
   }
+
+  TDB->cd();
+  SimTree->Write("", TObject::kSingleKey);
+  TDB->Close();
 
   return;
 }
@@ -798,7 +967,6 @@ void MUSIC_Simulator::SetAnode(string AnodeGeomFile, short Trans)
 	  DeltaEH[stp][col] = 0;
 	}
       }
-
     } // end if (AnodeStps>0 && AnodeCols>0)
     
     HCTB = new TH2F("HCTB","Beam", AnodeStps,-0.5, AnodeStps-0.5, 400,0,5);
@@ -1208,6 +1376,7 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
   
   return;
 }
+
 
 ///////////////////////////////////////////////////////////////////////////////////
 // Private method, to be used in an event loop.

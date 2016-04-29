@@ -17,8 +17,8 @@
   string beam = "20Ne";
   string target = "4He";
   string compound = "24Mg";
-  string light = "n";
-  string heavy = "23Mg";
+  string light = "p";
+  string heavy = "23Na";
   // Energy of the beam after the window.
   double Kb = 55;
   
@@ -117,13 +117,14 @@
   MUSIC->SetHeavyParticle(heavy, kBlue, SRIMFile[3]);
 
   // Release the Kraken!!
-  MUSIC->Simulate(Strip, NEvents, MaxTime, UserDT, 1);
+  // MUSIC->Simulate(Strip, NEvents, MaxTime, UserDT, 1);
 
   // Generates a collection of traces for all angles (theta, phi) for
   // all strips. The generated data base can be compared to
   // experimental traces.
-  // MUSIC->SimulateAll(MaxTime, UserDT, 1);
+  //  MUSIC->SetPrintLevel(1);
+  MUSIC->GenerateTraceDatabase(Form("TDB_%s_%s.root",target.c_str(),light.c_str()), MaxTime, UserDT);
 
-  MUSIC->WriteTraces(Form("Traces_Stp%d_%s_%s.root",Strip,target.c_str(),light.c_str()));
+  // MUSIC->WriteTraces(Form("Traces_Stp%d_%s_%s.root",Strip,target.c_str(),light.c_str()));
 
 }

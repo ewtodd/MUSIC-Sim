@@ -60,7 +60,7 @@ public:
   MUSIC_Simulator();
   void CalculateCMEnergyRange();   // <- Do we need this?
   void CalculateExcEnergyRange();  // <- Do we need this?
-  void GenerateTraceDatabase(double MaxTime, double UserDT, int Wait=0);
+  void GenerateTraceDatabase(std::string FileName, double MaxTime, double UserDT, int Wait=0);
   void SetAnode(std::string AnodeGeomFile, short Trans/*From 0 to 100*/);
   void SetBeamParticle(std::string Name, int Color, std::string ELossFile, double KineticE/*MeV*/);
   //  void SetBeamSpot(double diameter);
@@ -160,10 +160,12 @@ private:
   NuclideFinder* NuF;
 
   // TTree stuff similar to the one used for experimental data.
-  TTree* tree;
+  TTree* SimTree;
   float strip0;
-  float andl[16];
-  float andr[16];
+  static const int ExpAnodeStps = 16;
+  float* andl;
+  float* andr;
+  int* seg;
   float strip17;
   float cathode;
   float Kl;
