@@ -104,7 +104,7 @@ private:
   double** DeltaEB;    // beam
   double** DeltaEL;    // light
   double** DeltaEH;    // heavy
-  
+
   std::string Name;
 
   int PrintLevel;

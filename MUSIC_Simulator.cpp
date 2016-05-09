@@ -784,7 +784,7 @@ double** MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxT
 	cout << "Less than ZERO! " << Kf << endl;
       break;
     }
-    
+
     DE[stp][col] += fabs(Ki - Kf);
     DE[stp][AnodeCols] += fabs(Ki - Kf);
     
@@ -799,9 +799,9 @@ double** MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxT
     // Reduce (or increase) the total energy by amount of energy
     // deposited in the medium.
     if (UserDT>0)
-      Ene -= DE[stp][col];
+      Ene -= fabs(Ki - Kf);
     else
-      Ene += DE[stp][col];
+      Ene += fabs(Ki - Kf);
     
     // Move the coordinates of the initial point to the ones of the
     // final point.
