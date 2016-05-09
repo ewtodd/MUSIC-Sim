@@ -266,7 +266,12 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt)
       // loss of the beam in each strip.
       TraceH[evt][col]->SetPoint(stp, stp, DeltaEH[stp][col]);
       TraceL[evt][col]->SetPoint(stp, stp, DeltaEL[stp][col]);
-      DeltaE = DeltaEB[stp][col] + DeltaEL[stp][col] + DeltaEH[stp][col];
+    
+      DeltaE = DeltaEB[stp][col] + DeltaEL[stp][col] + DeltaEH[stp][col]-(DeltaEB_ave[stp][2]-DeltaEB_ave[1][2]);
+      /* DeltaE = DeltaEL[stp][col] + DeltaEH[stp][col];
+      if (DeltaE>0)
+      DeltaE += (DeltaEB[1][1]+DeltaEB[1][0]);*/
+      // DeltaE = DeltaEL[stp][col] + DeltaEH[stp][col];
 
       // Fill tree leafs
       if (SimTree!=0) {

@@ -14,16 +14,18 @@
   // Geometrical parameters (all distances in cm)
   string AnodeGeom = "AnodeGeometry";
 
-  string beam = "20Ne";
+  string beam = "23Na";
   string target = "4He";
-  string compound = "24Mg";
-  string light = "p";
-  string heavy = "23Na";
+  string compound = "27Al";
+  string light = "n";
+  string heavy = "26Al"; 
+  // string light = "4He";
+  //string heavy = "23Na";
   // Energy of the beam after the window.
-  double Kb = 55;
+  double Kb = 46;
   
-  int Strip = 3;
-  int NEvents = 2;
+  int Strip = 7;
+  int NEvents = 25;
   double MaxTime = 1000; // ns
   double UserDT = 0.1;     // ns
 
@@ -127,6 +129,6 @@
   //  MUSIC->SetPrintLevel(1);
   //  MUSIC->GenerateTraceDatabase(Form("TDB_%s_%s.root",target.c_str(),light.c_str()), MaxTime, UserDT);
 
-  // MUSIC->WriteTraces(Form("Traces_Stp%d_%s_%s.root",Strip,target.c_str(),light.c_str()));
+  MUSIC->WriteTraces(Form("Traces_Stp%d_%s_%s.root",Strip,target.c_str(),light.c_str()));
 
 }
