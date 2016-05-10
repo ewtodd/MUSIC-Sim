@@ -17,18 +17,18 @@
   string beam = "23Na";
   string target = "4He";
   string compound = "27Al";
-  string light = "4He";
-  string heavy = "23Na";
+  string light = "n";
+  string heavy = "26Al";
   // Energy of the beam after the window.
   //  double Kb = 55;
   double Kb = 46;
   
   double ThCMMin = 2;
   double ThCMMax = 178;
-  int ThSteps = 4;
+  int ThSteps = 10;
   double PhiCMMin = 2;
   double PhiCMMax = 358;
-  int PhiSteps = 8;
+  int PhiSteps = 6;
 
   int Strip = 17;
   int NEvents = 30;
@@ -140,6 +140,6 @@
   // experimental traces.
   string TraceDB = Form("TDB_%s_%s.root",target.c_str(),light.c_str());
   MUSIC->GenerateTraceDatabase(TraceDB, ThCMMin, ThCMMax, ThSteps, PhiCMMin, PhiCMMax, PhiSteps,
-			       MaxTime, UserDT, 1);
+			       MaxTime, UserDT);
 
 }

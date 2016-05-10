@@ -267,7 +267,7 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt)
       TraceH[evt][col]->SetPoint(stp, stp, DeltaEH[stp][col]);
       TraceL[evt][col]->SetPoint(stp, stp, DeltaEL[stp][col]);
 
-      DeltaE = DeltaEB[stp][col] + DeltaEL[stp][col] + DeltaEH[stp][col];//-(DeltaEB_ave[stp][2]-DeltaEB_ave[1][2]);
+      DeltaE = DeltaEB[stp][col] + DeltaEL[stp][col] + DeltaEH[stp][col];// - (DeltaEB_ave[stp][2]-DeltaEB_ave[1][2]);
 
       // Fill tree leaves
       if (SimTree!=0) {
@@ -444,9 +444,9 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
 
   // Tree similar to the one used for experimental data
   SimTree = new TTree("simt","Simulated MUSIC data");
-  SimTree->Branch("andl",  andl,     "andl[16]/F");
-  SimTree->Branch("andr",  andr,     "andr[16]/F");
-  SimTree->Branch("seg",   seg,      "seg[16]/F");
+  SimTree->Branch("de_l",  andl,     "de_l[16]/F");
+  SimTree->Branch("de_r",  andr,     "de_r[16]/F");
+  SimTree->Branch("seg",   seg,      "seg[16]/I");
   SimTree->Branch("stp0",  &strip0,  "stp0/F");
   SimTree->Branch("stp17", &strip17, "stp17/F");
   SimTree->Branch("cath",  &cathode, "cath/F");
@@ -472,7 +472,7 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
   // detector response
   CreateTracesAndTrajectories(NEvents);
   
-  cout << "Simulating MUSIC traces ... " << endl;
+  cout << "Simulating MUSIC traces ... (events = " << NEvents << ")" << endl;
   
   SetInitialKinematics(Kb_after_window);   
 
