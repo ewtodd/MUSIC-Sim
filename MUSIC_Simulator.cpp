@@ -287,11 +287,11 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt)
 	  }
 	}
       }
-      // if (EneSigma!=0 && Gaussian!=0 && DECol>0) {
-      //   Gaussian->SetRange(0.0, 2*DECol);
-      //   Gaussian->SetParameters(1.0, DECol, EneSigma);
-      //   DECol = Gaussian->GetRandom();
-      // }
+       if (EneSigma!=0 && Gaussian!=0 && DeltaE>0) {
+         Gaussian->SetRange(0.0, 2*DeltaE);
+         Gaussian->SetParameters(1.0, DeltaE, EneSigma);
+         DeltaE = Gaussian->GetRandom();
+       }
       Trace[evt][col]->SetPoint(stp, stp, DeltaE);
       if (PrintLevel>0)
 	cout << stp << " " << col << ": " << DeltaEB[stp][col] << " " << DeltaEL[stp][col] 

@@ -14,14 +14,14 @@
   // Geometrical parameters (all distances in cm)
   string AnodeGeom = "AnodeGeometry";
 
-  string beam = "23Na";
-  string target = "4He";
-  string compound = "27Al";
-  string light = "n";
-  string heavy = "26Al";
+  bool alpha=0;
+  bool proton=0;
+  bool neutron=1;
+  bool Beam=0;
+
   // Energy of the beam after the window.
   //  double Kb = 55;
-  double Kb = 46;
+  double Kb = 30;
   
   double ThCMMin = 2;
   double ThCMMax = 178;
@@ -30,16 +30,42 @@
   double PhiCMMax = 358;
   int PhiSteps = 6;
 
-  int Strip = 17;
+  if(Beam==1)
+    int Strip = 18;
+  else
+    int Strip = 4;
+  
   int NEvents = 30;
 
   double MaxTime = 1000; // ns
   double UserDT = 0.1;     // ns
 
   // Target gas related stuff
-  float GasP = 400; // Torr
+  float GasP = 200; // Torr
   float GasT = 293; // K
   int GasIndex = 3;
+
+  string beam = "25Mg";
+  string target = "4He";
+  string compound = "29Si";
+ 
+  
+  if(neutron==1){
+    string light = "n";
+    string heavy = "28Si";
+  }
+  
+  if(proton==1){
+    string light = "p";  
+    string heavy = "28Al";
+  }
+
+  if(alpha==1 || Beam==1){
+  string light = "4He";
+  string heavy = "25Mg";
+  }
+
+
   // You have to use the same index numbers as in the SRIM_Table_Maker class.
   //   0 - CD2
   //   1 - CF4 (gas)
@@ -114,7 +140,7 @@
   /////////////////////////////////////////////////////////////////////////////
   // gRandom->SetSeed();
   MUSIC_Simulator* MUSIC = new MUSIC_Simulator();
-  MUSIC->SetStripEnergyResolution(0.025);
+  MUSIC->SetStripEnergyResolution(0.04);
   // Geometry
   MUSIC->SetAnode(AnodeGeom, 90);
   // Beam
@@ -131,15 +157,15 @@
   // MUSIC->SetPrintLevel(1);
   
   // Release the Kraken!!
-  //MUSIC->Simulate(Strip, NEvents, MaxTime, UserDT, 1);
-  //  MUSIC->WriteTraces(Form("Traces_Stp%d_%s_%s.root", Strip, target.c_str(), light.c_str()));
+  MUSIC->Simulate(Strip, NEvents, MaxTime, UserDT, 0);
+  MUSIC->WriteTraces(Form("Traces_Stp%d_%s_%s.root", Strip, target.c_str(), light.c_str()));
 
 
   // Generates a collection of traces for all angles (theta, phi) for
   // all strips. The generated data base can be compared to
   // experimental traces.
   string TraceDB = Form("TDB_%s_%s.root",target.c_str(),light.c_str());
-  MUSIC->GenerateTraceDatabase(TraceDB, ThCMMin, ThCMMax, ThSteps, PhiCMMin, PhiCMMax, PhiSteps,
+  // MUSIC->GenerateTraceDatabase(TraceDB, ThCMMin, ThCMMax, ThSteps, PhiCMMin, PhiCMMax, PhiSteps,
 			       MaxTime, UserDT);
 
 }
