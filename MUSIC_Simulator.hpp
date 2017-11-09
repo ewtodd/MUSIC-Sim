@@ -19,6 +19,8 @@
 #include <fstream>
 #include <string>
 #include <cstdlib>
+// #include <sys/types.h>
+// #include <sys/sysinfo.h>
 
 //ROOT libraries
 #include <TCanvas.h>
@@ -63,14 +65,19 @@ public:
   void GenerateTraceDatabase(std::string FileName,
 			     double ThCMMin, double ThCMMax, int ThSteps,
 			     double PhiCMMin, double PhiCMMax, int PhiSteps,
-			     double MaxTime, double UserDT, int Wait=0);
-  void SetAnode(std::string AnodeGeomFile, short Trans/*From 0 to 100*/);
+			     double MaxTime, double UserDT, int UpdateEnabled=0, int Wait=0);
+  void SetAnode(std::string AnodeGeomFile, short Trans/*From 0 to 100*/, int ELossBins=400, 
+		float MaxELoss=5);
   void SetBeamParticle(std::string Name, int Color, std::string ELossFile, double KineticE/*MeV*/);
   //  void SetBeamSpot(double diameter);
   void SetCompoundParticle(std::string Name);
   void SetHeavyParticle(std::string Name, int Color, std::string ELossFile, int NEexc=0,
 			double* Eexc=0/*MeV*/);
+
+  void SetDecayDaughter1(std::string Name, int Color, std::string ELossFile);
+  void SetDecayDaughter2(std::string Name, int Color, std::string ELossFile);
   void SetLightParticle(std::string Name, int Color, std::string ELossFile);
+
   void SetPrintLevel(int PrintLevel);
   void SetStripEnergyResolution(float Sigma/*MeV*/);
   void SetTargetParticle(std::string Name);
@@ -84,6 +91,7 @@ private:
   void CreateTracesAndTrajectories(int NEvents);
   void DrawMUSIC(TEveManager* gEve, short Transparency /*From 0 to 100*/);
   void PrintCompoundEexc(double Kb, double** DeltaEB);
+  void PrintEnergetics(double Kb, double** DeltaEB);
   double** PropagateParticle(Particle* PO, int Event, double MaxTime, double UserDT);
   void SetInitialKinematics(double Kbi);
   int SetReactionKinematics(double Kbr, double zr, double tof, double theta_CM=-1, double phi_CM=-1);
@@ -97,6 +105,8 @@ private:
   Particle* Target;
   Particle* Compound;
   Particle* Heavy;
+  Particle* DeDau1;
+  Particle* DeDau2;
   Particle* Light;
   double Kb_after_window;
   double EneSigma;
@@ -106,6 +116,8 @@ private:
   double** DeltaEB;    // beam
   double** DeltaEL;    // light
   double** DeltaEH;    // heavy
+  double** DeltaED1;   // decay daughter1
+  double** DeltaED2;   // decay daughter2
 
   std::string Name;
 
@@ -124,8 +136,11 @@ private:
   TH2F* HPT;
   TGraph*** Trace;
   TGraph*** TraceH;
+  TGraph*** TraceD1;
+  TGraph*** TraceD2;
   TGraph*** TraceL;
   TGraph** TraceB;
+  TH1I* TraceMult;
   int NTraces;
 
   TF1* Gaussian;   // For randomizing the detector response
@@ -134,6 +149,8 @@ private:
 
   // Visual stuff
   TEveStraightLineSet** TrajH;
+  TEveStraightLineSet** TrajD1;
+  TEveStraightLineSet** TrajD2;
   TEveStraightLineSet** TrajL;
   TEveManager* Eve;
   TCanvas* TraceCan;
@@ -168,16 +185,19 @@ private:
   TTree* SimTree;
   float strip0;
   static const int ExpAnodeStps = 16;
-  float* andl;
-  float* andr;
+  float* de_l;
+  float* de_r;
   int* seg;
   float strip17;
   float cathode;
+  float Kb;
   float Kl;
   float Kh;
+  float theta_CM;
+  float phi_CM;
   float theta_l;
-  float theta_h;
   float phi_l;
+  float theta_h;
   float phi_h;
 
   // Log file

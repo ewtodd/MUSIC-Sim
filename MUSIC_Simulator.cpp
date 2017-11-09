@@ -40,10 +40,14 @@ MUSIC_Simulator::MUSIC_Simulator()
   Target = 0;
   Trace = 0;
   TraceH = 0;
+  TraceD1 = 0;
+  TraceD2 = 0;
   TraceL = 0;
   Compound = 0;
   Light = 0;
   Heavy = 0;
+  DeDau1 = 0;
+  DeDau2 = 0;
 
   // Nuclide finder object
   NuF = new NuclideFinder();
@@ -82,15 +86,14 @@ MUSIC_Simulator::MUSIC_Simulator()
   
   // Arrays for the TTree
   SimTree = 0;
-  andr = new float[ExpAnodeStps];
-  andl = new float[ExpAnodeStps];
+  de_r = new float[ExpAnodeStps];
+  de_l = new float[ExpAnodeStps];
   seg = new int[ExpAnodeStps];
   for (int stp=0; stp<ExpAnodeStps; stp++) {
-    andr[stp] = 0;
-    andl[stp] = 0;
+    de_r[stp] = 0;
+    de_l[stp] = 0;
     seg[stp] = -1;
   }
-  
 }
 
 
@@ -174,6 +177,7 @@ void MUSIC_Simulator::CalculateCMEnergyRange()
 ///////////////////////////////////////////////////////////////////////////////////
 void MUSIC_Simulator::CalculateExcEnergyRange()
 {
+#if 1
   double pb, Eb;
   double Eexc_beg, Eexc_end;
   double mb = Beam->Mass;
@@ -228,8 +232,33 @@ void MUSIC_Simulator::CalculateExcEnergyRange()
     if (i+1<AnodeStps) 
       Eexc_beg = Eexc_end;
   }
+#endif
   return;
 }
+
+///////////////////////////////////////////////////////////////////////////////////
+// Simple function that returns 0 if the used RAM is more than the MaxMemory
+// (or if the 'System' pointer hasn't been set) and 1 if the used RAM is 
+// still less than MaxMemory.
+///////////////////////////////////////////////////////////////////////////////////
+// int MUSIC_Simulator::CheckMemoryUsage()
+// {
+//   int status = 0;
+//   MemInfo_t* Memory;
+//   if (System!=0) {
+//     Memory = new MemInfo_t();
+//     System->GetMemInfo(Memory);
+//     cout << "> Total memory used: "  << Memory->fMemUsed << " MB = "
+// 	 << 100.0*Memory->fMemUsed/Memory->fMemTotal << " % of total memory." << endl;
+//     if (Memory->fMemUsed < MaxMemory)
+//       status = 1;
+//     delete Memory;
+//   }
+//   else
+//     cout << "> Warning: System pointer not set." << endl;
+//   return status;
+// }
+
 
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -237,9 +266,16 @@ void MUSIC_Simulator::CalculateExcEnergyRange()
 ///////////////////////////////////////////////////////////////////////////////////
 void MUSIC_Simulator::ComputeDetectorResponse(int evt)
 {
+#if 1
+  double Ethresh = 0.02;  // Right now the threshold for the multiplicity is hard-coded here.
   double DeltaE = 0;
+  TraceMult->Reset();
   if (evt<Particle::MaxEvents) {
     TrajH[evt] = (TEveStraightLineSet*)Heavy->AllTraj[evt]->Clone();
+    if (DeDau1 && DeDau2) {
+      TrajD1[evt] = (TEveStraightLineSet*)DeDau1->AllTraj[evt]->Clone();
+      TrajD2[evt] = (TEveStraightLineSet*)DeDau2->AllTraj[evt]->Clone();
+    }
     TrajL[evt] = (TEveStraightLineSet*)Light->AllTraj[evt]->Clone();
   }
   
@@ -249,14 +285,15 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt)
     strip0 = 0;
     strip17 = 0;
     for (int stp=0; stp<ExpAnodeStps; stp++) {
-      andl[stp] = 0;
-      andr[stp] = 0;
+      de_l[stp] = 0;
+      de_r[stp] = 0;
     }
   }
 
   // Loop over the anode's strips and columns
   for (int stp=0; stp<AnodeStps; stp++) {
     DeltaE = 0;
+    int mult = 0;
     for (int col=0; col<AnodeCols+1; col++) {
       // Previously we were normalizing to the energy loss of the
       // beam minus the energy loss in the the dead layer, which in
@@ -264,10 +301,19 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt)
       // DeltaE = DeltaEB[n] + DeltaEL[n] + DeltaEH[n] - (DeltaEB_ave[n]-DeltaEB_ave[1]);
       // In this version, we do not normalize to the average energy
       // loss of the beam in each strip.
-      TraceH[evt][col]->SetPoint(stp, stp, DeltaEH[stp][col]);
+      if (DeDau1 && DeDau2) {
+	TraceD1[evt][col]->SetPoint(stp, stp, DeltaED1[stp][col]);
+	TraceD2[evt][col]->SetPoint(stp, stp, DeltaED2[stp][col]);
+      }
+      else
+	TraceH[evt][col]->SetPoint(stp, stp, DeltaEH[stp][col]);
       TraceL[evt][col]->SetPoint(stp, stp, DeltaEL[stp][col]);
-
-      DeltaE = DeltaEB[stp][col] + DeltaEL[stp][col] + DeltaEH[stp][col];// - (DeltaEB_ave[stp][2]-DeltaEB_ave[1][2]);
+      
+      DeltaE = DeltaEB[stp][col] + DeltaEL[stp][col] + DeltaEH[stp][col] + 
+	DeltaED1[stp][col] + DeltaED2[stp][col];
+      
+      if (DeltaE>Ethresh && col<AnodeCols)
+	mult++;
 
       // Fill tree leaves
       if (SimTree!=0) {
@@ -281,9 +327,9 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt)
 	  else if (stpid-1<ExpAnodeStps) {
 	    seg[stpid-1] = stpid;
 	    if (col==0) 
-	      andr[stpid-1] += DeltaE;
+	      de_r[stpid-1] += DeltaE;
 	    else if (col==1)
-	      andl[stpid-1] += DeltaE;
+	      de_l[stpid-1] += DeltaE;
 	  }
 	}
       }
@@ -295,10 +341,12 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt)
       Trace[evt][col]->SetPoint(stp, stp, DeltaE);
       if (PrintLevel>0)
 	cout << stp << " " << col << ": " << DeltaEB[stp][col] << " " << DeltaEL[stp][col] 
-	     << " " << DeltaEH[stp][col] << endl;
+	     << " " << DeltaEH[stp][col] << " " << DeltaED1[stp][col] << " " << DeltaED2[stp][col] 
+	     << endl;
     }
+    TraceMult->Fill(stp, mult);
   }
-
+#endif
   return;
 }
 
@@ -308,6 +356,7 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt)
 ///////////////////////////////////////////////////////////////////////////////////
 void MUSIC_Simulator::CreateTracesAndTrajectories(int NEvents)
 {
+#if 1
   // Look for the first strip in which all the column colors are
   // specified and assign those colors to the Chroma elements.
   short* Chroma = new short[AnodeCols];
@@ -345,22 +394,40 @@ void MUSIC_Simulator::CreateTracesAndTrajectories(int NEvents)
   // Initialize the rest of the traces for each column
   Trace = new TGraph**[NEvents];
   TraceH = new TGraph**[NEvents];
+  TraceD1 = new TGraph**[NEvents];
+  TraceD2 = new TGraph**[NEvents];
   TraceL = new TGraph**[NEvents];
   for (int evt=0; evt<NEvents; evt++) {
     Trace[evt] = new TGraph*[AnodeCols+1];
     TraceH[evt] = new TGraph*[AnodeCols+1];
+    TraceD1[evt] = new TGraph*[AnodeCols+1];
+    TraceD2[evt] = new TGraph*[AnodeCols+1];
     TraceL[evt] = new TGraph*[AnodeCols+1];
     for (int col=0; col<AnodeCols+1; col++) {
       Trace[evt][col] = new TGraph();
       TraceH[evt][col] = new TGraph();
+      TraceD1[evt][col] = new TGraph();
+      TraceD2[evt][col] = new TGraph();
       TraceL[evt][col] = new TGraph();
       if (col==AnodeCols) {
 	Trace[evt][col]->SetName(Form("evt %d total", evt));
 	Trace[evt][col]->SetLineColor(kBlack);
 	Trace[evt][col]->SetLineWidth(2);
+	// heavy
 	TraceH[evt][col]->SetName(Form("evt %d total %s", evt, Heavy->Name.c_str()));
 	TraceH[evt][col]->SetLineColor(Heavy->GetColor());
 	TraceH[evt][col]->SetLineWidth(2);
+	if (DeDau1 && DeDau2) {
+	  // decay daughter1
+	  TraceD1[evt][col]->SetName(Form("evt %d total %s", evt, DeDau1->Name.c_str()));
+	  TraceD1[evt][col]->SetLineColor(DeDau1->GetColor());
+	  TraceD1[evt][col]->SetLineWidth(2);
+	  // decay daughter2
+	  TraceD2[evt][col]->SetName(Form("evt %d total %s", evt, DeDau2->Name.c_str()));
+	  TraceD2[evt][col]->SetLineColor(DeDau2->GetColor());
+	  TraceD2[evt][col]->SetLineWidth(2);
+	}
+	// light
 	TraceL[evt][col]->SetName(Form("evt %d total %s", evt, Light->Name.c_str()));
 	TraceL[evt][col]->SetLineColor(Light->GetColor());
 	TraceL[evt][col]->SetLineWidth(2);
@@ -370,10 +437,24 @@ void MUSIC_Simulator::CreateTracesAndTrajectories(int NEvents)
 	Trace[evt][col]->SetLineColor(Chroma[col]);
 	Trace[evt][col]->SetLineStyle(2);
 	Trace[evt][col]->SetLineWidth(2);
+	// heavy
 	TraceH[evt][col]->SetName(Form("evt %d col %d %s", evt, col, Heavy->Name.c_str()));
 	TraceH[evt][col]->SetLineColor(Chroma[col]);
 	TraceH[evt][col]->SetLineStyle(2);
 	TraceH[evt][col]->SetLineWidth(2);
+	if (DeDau1 && DeDau2) {
+	  // decay daughter1
+	  TraceD1[evt][col]->SetName(Form("evt %d col %d %s", evt, col, DeDau1->Name.c_str()));
+	  TraceD1[evt][col]->SetLineColor(Chroma[col]);
+	  TraceD1[evt][col]->SetLineStyle(2);
+	  TraceD1[evt][col]->SetLineWidth(2);
+	  // decay daughter1
+	  TraceD2[evt][col]->SetName(Form("evt %d col %d %s", evt, col, DeDau2->Name.c_str()));
+	  TraceD2[evt][col]->SetLineColor(Chroma[col]);
+	  TraceD2[evt][col]->SetLineStyle(2);
+	  TraceD2[evt][col]->SetLineWidth(2);
+	}
+	// light
 	TraceL[evt][col]->SetName(Form("evt %d col %d %s", evt, col, Light->Name.c_str()));
 	TraceL[evt][col]->SetLineColor(Chroma[col]);
 	TraceL[evt][col]->SetLineStyle(2);
@@ -382,9 +463,16 @@ void MUSIC_Simulator::CreateTracesAndTrajectories(int NEvents)
     }
   }
 
+  TraceMult = new TH1I("TraceMult","Mult.",AnodeStps,-0.5,AnodeStps-0.5);
+  TraceMult->GetXaxis()->SetTitle("Strip number");
+  TraceMult->GetXaxis()->CenterTitle();
+ 
   // 3D trajectories
   TrajH = new TEveStraightLineSet*[NEvents];
+  TrajD1 = new TEveStraightLineSet*[NEvents];
+  TrajD2 = new TEveStraightLineSet*[NEvents];
   TrajL = new TEveStraightLineSet*[NEvents];
+#endif
   return;
 }
 
@@ -395,6 +483,7 @@ void MUSIC_Simulator::CreateTracesAndTrajectories(int NEvents)
 ///////////////////////////////////////////////////////////////////////////////////
 void MUSIC_Simulator::DrawMUSIC(TEveManager* gEve, short Transparency /*From 0 to 100*/)
 {
+#if 1
   if (VolAnode!=0) {
     if (Transparency<0 || Transparency>100) {
       cout << "Warning: Transparency level must be from 0 to 100." << endl;
@@ -422,6 +511,7 @@ void MUSIC_Simulator::DrawMUSIC(TEveManager* gEve, short Transparency /*From 0 t
     gEve->AddElement(Zaxis);
     gEve->Redraw3D(kTRUE);
   }
+#endif
   return;
 }
 
@@ -432,28 +522,39 @@ void MUSIC_Simulator::DrawMUSIC(TEveManager* gEve, short Transparency /*From 0 t
 void MUSIC_Simulator::GenerateTraceDatabase(string FileName, 
 					    double ThCMMin, double ThCMMax, int ThSteps,
 					    double PhiCMMin, double PhiCMMax, int PhiSteps,
-					    double MaxTime, double UserDT, int Wait)
+					    double MaxTime, double UserDT, int Update,
+					    int Wait)
 {
+#if 1
   // Verify that the anode geometry has been set
   if (VolAnode==0) {
     cout << "Anode geometry not specified. Use SetAnode method." << endl;
     return;
   }
   
+  // For progress monitor
+  TStopwatch StpWatch;
+  long EvtsProcessed = 0;
+  long double Frac[6] = {0.01, 0.25, 0.5, 0.75, 0.9, 1.0};
+  int FIndex = 0;
+  
+  // ROOT file where the traces will be saved
   TFile* TDB = new TFile(FileName.c_str(), "recreate");
 
   // Tree similar to the one used for experimental data
   SimTree = new TTree("simt","Simulated MUSIC data");
-  SimTree->Branch("de_l",  andl,     "de_l[16]/F");
-  SimTree->Branch("de_r",  andr,     "de_r[16]/F");
-  SimTree->Branch("seg",   seg,      "seg[16]/I");
+  SimTree->Branch("de_l",  de_l,     Form("de_l[%d]/F",AnodeStps));
+  SimTree->Branch("de_r",  de_r,     Form("de_r[%d]/F",AnodeStps));
+  SimTree->Branch("seg",   seg,      Form("seg[%d]/I",AnodeStps));
   SimTree->Branch("stp0",  &strip0,  "stp0/F");
   SimTree->Branch("stp17", &strip17, "stp17/F");
   SimTree->Branch("cath",  &cathode, "cath/F");
   // The following branches are for physical quantities that at the
   // moment can only be obtained from the simulation
+  SimTree->Branch("Kb", &Kb, "Kb/F");
   SimTree->Branch("Kl", &Kl, "Kl/F");
   SimTree->Branch("Kh", &Kh, "Kh/F");
+  SimTree->Branch("theta_CM", &theta_CM, "theta_CM/F");
   SimTree->Branch("theta_l", &theta_l, "theta_l/F");
   SimTree->Branch("theta_h", &theta_h, "theta_h/F");
   SimTree->Branch("phi_l",   &phi_l,   "phi_l/F");
@@ -472,7 +573,7 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
   // detector response
   CreateTracesAndTrajectories(NEvents);
   
-  cout << "Simulating MUSIC traces ... (events = " << NEvents << ")" << endl;
+  cout << "Generating " << NEvents << " MUSIC traces ..." << endl;
   
   SetInitialKinematics(Kb_after_window);   
 
@@ -492,7 +593,7 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
   // for (int col=0; col<AnodeCols; col++)
   //   TraceB[col]->Draw("l same");
   // TraceB[AnodeCols]->Draw("*l same");
-  PrintCompoundEexc(Kb_after_window, DeltaEB_ave);
+  PrintEnergetics(Kb_after_window, DeltaEB_ave);
 
   //-------------------------------------------------------------------------------
   // Some kinematic variables
@@ -562,6 +663,8 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
 	      DeltaEB[stp][col] = 0;
 	      DeltaEL[stp][col] = 0;
 	      DeltaEH[stp][col] = 0;
+	      DeltaED1[stp][col] = 0;
+	      DeltaED2[stp][col] = 0;
 	    }
 	  
 	  // 1. Set beam inital conditions (beam energy, position)
@@ -588,9 +691,14 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
 	  // the reaction point to the entrance of MUSIC
 	  DeltaEB = PropagateParticle(Beam, evt, MaxTime, -UserDT);
 	  
-	  // 5. Propagate heavy particle and calculate energy loss in the
-	  // anode elements
-	  DeltaEH = PropagateParticle(Heavy, evt, MaxTime, UserDT);
+	  // 5. Propagate heavy particle (or decay daughters) and calculate energy 
+	  // loss in the anode elements
+	  if (DeDau1 && DeDau2) {
+	    DeltaED1 = PropagateParticle(DeDau1, evt, MaxTime, UserDT);
+	    DeltaED2 = PropagateParticle(DeDau2, evt, MaxTime, UserDT);
+	  }
+	  else
+	    DeltaEH = PropagateParticle(Heavy, evt, MaxTime, UserDT);
 	  
 	  // 6. Propagate light particle and calculate energy loss in the
 	  // anode elements
@@ -602,7 +710,19 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
 	  SimTree->Fill();
 	  
 	  // 8. Display trace and particle trajecories   
-	  UpdateVisuals(evt, Kbr, zr, TOF, Wait);	  
+	  if (Update) 
+	    UpdateVisuals(evt, Kbr, zr, TOF, Wait);
+	  
+	  // Simple progress monitor
+	  EvtsProcessed++;
+	  if (NEvents>99) {
+	    if ((long double)(EvtsProcessed)>=Frac[FIndex]*NEvents) {
+	      cout << "\t" << Frac[FIndex]*100 << "% processed (" 
+		   << StpWatch.RealTime() << " s)" << endl;
+	      StpWatch.Start(kFALSE);
+	      FIndex++;
+	    }
+	  }
 
 	  NTraces++;
 	  evt++;
@@ -610,19 +730,24 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
       }
     }
   }
+  cout << "Saving traces ..." << endl;
+  StpWatch.Print();
 
   TDB->cd();
   SimTree->Write("", TObject::kSingleKey);
   TDB->Close();
-
+  StpWatch.Stop();
+  StpWatch.Print();
+#endif
   return;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////
 // 
 ///////////////////////////////////////////////////////////////////////////////////
-void MUSIC_Simulator::PrintCompoundEexc(double Kb, double** DeltaEB)
+void MUSIC_Simulator::PrintEnergetics(double Kb, double** DeltaEB)
 {
+#if 1
   double mb = Beam->Mass;
   double mt = Target->Mass;
   double mc = Compound->Mass;
@@ -632,13 +757,17 @@ void MUSIC_Simulator::PrintCompoundEexc(double Kb, double** DeltaEB)
   cout.width(5);
   cout << "Stp";
   cout.width(15);
-  cout << "EexcMax[MeV]";
+  cout << "Ebmax[MeV]";
   cout.width(15);
-  cout << "EexcMin[MeV]";
+  cout << "EbMin[MeV]" << endl;
   cout.width(15);
-  cout << Form("E(%s)[MeV]", (Target->Name).c_str());
+  cout << "Exmax[MeV]";
   cout.width(15);
-  cout << "Ecm[MeV]" << endl;
+  cout << "Exmin[MeV]" << endl;
+  cout.width(15);
+  cout << "ECMmax[MeV]";
+  cout.width(15);
+  cout << "ECMmin[MeV]" << endl;
 
   for (int stp=0; stp<AnodeStps+1; stp++) {
     // Exc. energy of compound particle.
@@ -653,6 +782,8 @@ void MUSIC_Simulator::PrintCompoundEexc(double Kb, double** DeltaEB)
     cout.width(15);
     cout.precision(4);
     cout << sqrt(Ptot*Ptot) - mc;
+    // Initial momentum in the CM reference frame (Ptot*Ptot is an invariant quantity).
+    double pCM_max = sqrt((Ptot*Ptot-pow(mt+mb,2))*(Ptot*Ptot-pow(mb-mt,2))/(4*(Ptot*Ptot)));    
     // Lower limit
     Kb -= DeltaEB[stp][AnodeCols];
     if (Kb>0) {
@@ -673,7 +804,22 @@ void MUSIC_Simulator::PrintCompoundEexc(double Kb, double** DeltaEB)
       cout << Kt;
       cout.width(15);
       cout.precision(4);
-      cout << Ecm << endl;
+      cout << sqrt(Ptot*Ptot) - mc;
+      // Initial momentum in the CM reference frame (Ptot*Ptot is an invariant quantity).
+      double pCM_min = sqrt((Ptot*Ptot-pow(mt+mb,2))*(Ptot*Ptot-pow(mb-mt,2))/(4*(Ptot*Ptot)));
+      cout.width(15);
+      cout.precision(4);
+      cout << sqrt(mt*mt+pCM_max*pCM_max) - mt;
+      cout.width(15);
+      cout.precision(4);
+      cout << sqrt(mt*mt+pCM_min*pCM_min) - mt;
+      cout.width(15);
+      cout.precision(4);
+      //    cout << sqrt(mb*mb+pCM_max*pCM_max) - mb;
+      cout << Kb*mt/(mb+mt) << endl;
+      // cout.width(15);
+      // cout.precision(4);
+      // cout << sqrt(mb*mb+pCM_min*pCM_min) - mb << endl;
     }
     else {
       cout.width(15);
@@ -684,9 +830,9 @@ void MUSIC_Simulator::PrintCompoundEexc(double Kb, double** DeltaEB)
       cout << "0" << endl;
     }
   }
-
-  return;
-}
+#endif
+    return;
+  }
 
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -706,6 +852,7 @@ double** MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxT
     for (int col = 0; col<AnodeCols+1; col++) 
       DE[stp][col] = 0;
   }
+#if 1
   TGeoVolume* Vol = 0;
   bool Skip = 0;
   int step = 0;
@@ -855,7 +1002,7 @@ double** MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxT
       PO->SetTracePoint((float)tt, (float)xt, (float)yt, (float)zt, (float)Kt);
     }
   } // end 
-
+#endif
   return DE;
 }
 
@@ -874,8 +1021,9 @@ double** MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxT
 // , where '#' is meant to be replaced by an integer and '#f' by a floating point 
 // number.
 ///////////////////////////////////////////////////////////////////////////////////
-void MUSIC_Simulator::SetAnode(string AnodeGeomFile, short Trans)
+ void MUSIC_Simulator::SetAnode(string AnodeGeomFile, short Trans, int ELossBins, float MaxELoss)
 {
+#if 1
   ifstream GeomFile;
   string line;
   int line_counter = 0;
@@ -1031,33 +1179,39 @@ void MUSIC_Simulator::SetAnode(string AnodeGeomFile, short Trans)
       DeltaEB = new double*[AnodeStps];    // beam
       DeltaEL = new double*[AnodeStps];    // light
       DeltaEH = new double*[AnodeStps];    // heavy
+      DeltaED1 = new double*[AnodeStps];   // decay daughter1
+      DeltaED2 = new double*[AnodeStps];   // decay daughter2
       for (int stp=0; stp<AnodeStps; stp++) {
 	DeltaEB_ave[stp] = new double[AnodeCols+1];
 	DeltaEB[stp] = new double[AnodeCols+1];
 	DeltaEL[stp] = new double[AnodeCols+1];
 	DeltaEH[stp] = new double[AnodeCols+1];
+	DeltaED1[stp] = new double[AnodeCols+1];
+	DeltaED2[stp] = new double[AnodeCols+1];
 	for (int col=0; col<AnodeCols+1; col++) {
 	  DeltaEB_ave[stp][col] = 0;
 	  DeltaEB[stp][col] = 0;
 	  DeltaEL[stp][col] = 0;
 	  DeltaEH[stp][col] = 0;
+	  DeltaED1[stp][col] = 0;
+	  DeltaED2[stp][col] = 0;
 	}
       }
     } // end if (AnodeStps>0 && AnodeCols>0)
     
-    HCTB = new TH2F("HCTB","Beam", AnodeStps,-0.5, AnodeStps-0.5, 400,0,5);
+    HCTB = new TH2F("HCTB","Beam", AnodeStps,-0.5, AnodeStps-0.5, ELossBins,0,MaxELoss);
     HCTB->GetXaxis()->SetTitle("Strip number");
     HCTB->GetXaxis()->CenterTitle();
     HCTB->GetYaxis()->SetTitle("Energy loss [MeV]");
     HCTB->GetYaxis()->CenterTitle(); 
     
-    HCT = new TH2F("HCT","Column traces", AnodeStps,-0.5, AnodeStps-0.5, 400,0,5);
+    HCT = new TH2F("HCT","Column traces", AnodeStps,-0.5, AnodeStps-0.5, ELossBins,0,MaxELoss);
     HCT->GetXaxis()->SetTitle("Strip number");
     HCT->GetXaxis()->CenterTitle();
     HCT->GetYaxis()->SetTitle("Energy loss [MeV]");
     HCT->GetYaxis()->CenterTitle(); 
     
-    HPT = new TH2F("HPT","Particle traces", AnodeStps,-0.5, AnodeStps-0.5, 400,0,5);
+    HPT = new TH2F("HPT","Particle traces", AnodeStps,-0.5, AnodeStps-0.5, ELossBins,0,MaxELoss);
     HPT->GetXaxis()->SetTitle("Strip number");
     HPT->GetXaxis()->CenterTitle();
     HPT->GetYaxis()->SetTitle("Energy loss [MeV]");
@@ -1069,6 +1223,7 @@ void MUSIC_Simulator::SetAnode(string AnodeGeomFile, short Trans)
 
   cout << "Anode dimensions: " << AnodeLength << "x" << AnodeHeight << "x" 
        << AnodeDepth << "cm^3" << endl;
+#endif
   return;
 }
 
@@ -1077,6 +1232,7 @@ void MUSIC_Simulator::SetAnode(string AnodeGeomFile, short Trans)
 ///////////////////////////////////////////////////////////////////////////////////
 void MUSIC_Simulator::SetBeamParticle(string Name, int Color, string ELossFile, double K)
 {
+#if 1
   // Use the nuclide finder object to determine the mass and atomic
   // number of this particle. Mass must be in MeV/c^2) and Z (in e).
   double m = NuF->GetMass(Name, "MeV/c^2");
@@ -1086,6 +1242,7 @@ void MUSIC_Simulator::SetBeamParticle(string Name, int Color, string ELossFile, 
   // Currently, this simulation is restricted to one medium (gas) in MUSIC.
   Beam->SetMedium(ELossFile);
   Kb_after_window = K;
+#endif
   return;
 }
 
@@ -1095,6 +1252,7 @@ void MUSIC_Simulator::SetBeamParticle(string Name, int Color, string ELossFile, 
 ///////////////////////////////////////////////////////////////////////////////////
 void MUSIC_Simulator::SetCompoundParticle(string Name)
 {
+#if 1
   // Use the nuclide finder object to determine the mass and atomic
   // number of this particle. Mass must be in MeV/c^2) and Z (in e).
   double m = NuF->GetMass(Name, "MeV/c^2");
@@ -1105,6 +1263,43 @@ void MUSIC_Simulator::SetCompoundParticle(string Name)
 
   //  Compound->SetExcEnergies(NEexc, Eexc);
   // I would be good to print the excitation energy of the compound 
+#endif
+  return;
+}
+
+///////////////////////////////////////////////////////////////////////////////////
+// Create the decay daughter1 of the heavy particle.
+///////////////////////////////////////////////////////////////////////////////////
+void MUSIC_Simulator::SetDecayDaughter1(string Name, int Color, string ELossFile)
+{
+#if 1
+  // Use the nuclide finder object to determine the mass and atomic
+  // number of this particle. Mass must be in MeV/c^2) and Z (in e).
+  double m = NuF->GetMass(Name, "MeV/c^2");
+  int Z = NuF->GetZ(Name);
+  DeDau1 = new Particle(Name, m, Z, true /*SaveTrajectories on*/);
+  DeDau1->SetTrajectoryAtt((short)Color);
+  // Currently, this simulation is restricted to one medium (gas) in MUSIC.
+  DeDau1->SetMedium(ELossFile);
+#endif
+  return;
+}
+
+///////////////////////////////////////////////////////////////////////////////////
+// Create the decay daughter2 of the heavy particle.
+///////////////////////////////////////////////////////////////////////////////////
+void MUSIC_Simulator::SetDecayDaughter2(string Name, int Color, string ELossFile)
+{
+#if 1
+  // Use the nuclide finder object to determine the mass and atomic
+  // number of this particle. Mass must be in MeV/c^2) and Z (in e).
+  double m = NuF->GetMass(Name, "MeV/c^2");
+  int Z = NuF->GetZ(Name);
+  DeDau2 = new Particle(Name, m, Z, true /*SaveTrajectories on*/);
+  DeDau2->SetTrajectoryAtt((short)Color);
+  // Currently, this simulation is restricted to one medium (gas) in MUSIC.
+  DeDau2->SetMedium(ELossFile);
+#endif
   return;
 }
 
@@ -1115,6 +1310,7 @@ void MUSIC_Simulator::SetCompoundParticle(string Name)
 void MUSIC_Simulator::SetHeavyParticle(string Name, int Color, string ELossFile, int NEexc,
 				       double* Eexc)
 {
+#if 1
   // Use the nuclide finder object to determine the mass and atomic
   // number of this particle. Mass must be in MeV/c^2) and Z (in e).
   double m = NuF->GetMass(Name, "MeV/c^2");
@@ -1124,6 +1320,7 @@ void MUSIC_Simulator::SetHeavyParticle(string Name, int Color, string ELossFile,
   // Currently, this simulation is restricted to one medium (gas) in MUSIC.
   Heavy->SetMedium(ELossFile);
   Heavy->SetExcEnergies(NEexc, Eexc);
+#endif
   return;
 }
 
@@ -1134,6 +1331,7 @@ void MUSIC_Simulator::SetHeavyParticle(string Name, int Color, string ELossFile,
 ///////////////////////////////////////////////////////////////////////////////////
 void MUSIC_Simulator::SetInitialKinematics(double Kbi/*MeV*/)
 {
+#if 1
   // Mass of the beam particle.
   double mb = Beam->Mass;
 
@@ -1148,6 +1346,7 @@ void MUSIC_Simulator::SetInitialKinematics(double Kbi/*MeV*/)
   Beam->SetX(0, 0, 0, 0);
   if (PrintLevel>0)
     Beam->Print();
+#endif
   return;
 }
 
@@ -1158,6 +1357,7 @@ void MUSIC_Simulator::SetInitialKinematics(double Kbi/*MeV*/)
 ///////////////////////////////////////////////////////////////////////////////////
 void MUSIC_Simulator::SetLightParticle(string Name, int Color, string ELossFile)
 {
+#if 1
   // Use the nuclide finder object to determine the mass and atomic
   // number of this particle. Mass must be in MeV/c^2) and Z (in e).
   double m = NuF->GetMass(Name, "MeV/c^2");
@@ -1166,6 +1366,7 @@ void MUSIC_Simulator::SetLightParticle(string Name, int Color, string ELossFile)
   Light->SetTrajectoryAtt((short)Color);
   // Currently, this simulation is restricted to one medium (gas) in MUSIC.
   Light->SetMedium(ELossFile);
+#endif
   return;
 }
 
@@ -1175,6 +1376,7 @@ void MUSIC_Simulator::SetLightParticle(string Name, int Color, string ELossFile)
 ///////////////////////////////////////////////////////////////////////////////////
 void MUSIC_Simulator::SetPrintLevel(int Level/*0-2*/)
 {
+#if 1
   if (Level<0 || Level>2) {
     cout << "Warning: Invalid information printing level.\n"
 	 << "Valid options are:\n"
@@ -1186,10 +1388,11 @@ void MUSIC_Simulator::SetPrintLevel(int Level/*0-2*/)
   else {
     cout << "Information printing level = " << Level;
     PrintLevel = Level;
-    Log.open("MUSIC_Sim.log");
+    Log.open("music_sim.log");
     Log << "================================================================================" << endl;
     Log << "|--- MUSIC simulator log file -------------------------------------------------|" << endl;
   }
+#endif
   return;
 }
 
@@ -1203,13 +1406,15 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
 					   double theta_CM, double phi_CM)
 {
   int ReactionAllowed = 1;
+#if 1
   if (PrintLevel>0)
-    cout << "\nReaction kine" << endl;
+    cout << "\n*** Reaction kinematics ********************************************" << endl;
   double mb = Beam->Mass;
   double mt = Target->Mass;
   double mc = Compound->Mass;
   double ml = Light->Mass;
   double mh = Heavy->Mass;
+  double Ex = Heavy->GetEexc();
 
   // Linear momentum and total energy of the beam particle in the lab.
   double pb = sqrt(2*mb*Kbr*(1 + Kbr/2/mb));
@@ -1221,8 +1426,11 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
   double BetaX = pb*sin(theta_b)*cos(phi_b)/(Eb+mt);
   double BetaY = pb*sin(theta_b)*sin(phi_b)/(Eb+mt);
   double BetaZ = pb*cos(theta_b)/(Eb+mt);
-  if (PrintLevel>0)
-    cout << "BetaX=" << BetaX << "  BetaY=" << BetaY << "  BetaZ=" << BetaZ << endl; 
+  if (PrintLevel>0) {
+    cout << "Center-of-mass velocity (v/c):" << endl;
+    cout << "\tBetaX=" << BetaX << "  BetaY=" << BetaY << "  BetaZ=" << BetaZ << endl; 
+    cout << "--- Beam and target particles --------------------------------------" << endl;
+  }
 
   // Four-momentum of the beam.
   Beam->SetP(Eb, pb*sin(theta_b)*cos(phi_b), pb*sin(theta_b)*sin(phi_b), pb*cos(theta_b));
@@ -1242,8 +1450,10 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
   
   // Exc. energy of compound particle.
   Compound->SetP(Ptot);
-  if (PrintLevel>0)
+  if (PrintLevel>0) {
+    cout << "--- Compound particle ----------------------------------------------" << endl;
     Compound->Print();
+  }
   if (PrintLevel>0)
     cout << "Eexc(" << Compound->Name << ") = " << sqrt(Ptot*Ptot) - mc << " MeV" << endl;
 
@@ -1253,22 +1463,25 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
     theta_CM = acos(Rdm->Uniform(-1,1));
     phi_CM = Rdm->Uniform(-pi,pi);
   }
-  if (PrintLevel>0)
+  if (PrintLevel>0) {
+    cout << "--- Outgoing particles (heavy and light) ---------------------------" << endl;
     cout << "theta_cm=" << theta_CM*180/pi << "   phi_cm=" << phi_CM*180/pi << endl;
+  }
   
   // Verify that the reaction can occur.
-  if (Ptot*Ptot<pow(ml+mh,2)) {
+  // In this case, the reaction is NOT energetically allowed.
+  if (Ptot*Ptot<pow(ml+mh+Ex,2)) {
     Light->SetP(ml, 0, 0, 0);
     Light->SetX(tof, 0, 0, zr);
-    Heavy->SetP(mh, 0, 0, 0);
+    Heavy->SetP(mh+Ex, 0, 0, 0);
     Heavy->SetX(tof, 0, 0, zr);
     ReactionAllowed = 0;
   }
-  // In this case, the reaction is energetically allowed.
+  // In this case, the reaction IS energetically allowed.
   else {
     // Final momentum in the CM reference frame (Ptot*Ptot is an invariant quantity).
-    double pf_CM = sqrt((Ptot*Ptot - pow(ml+mh,2))*(Ptot*Ptot - pow(ml-mh,2))/(4*(Ptot*Ptot)));
-        
+    double pf_CM = sqrt((Ptot*Ptot - pow(ml+mh+Ex,2))*(Ptot*Ptot - pow(ml-mh-Ex,2))/(4*(Ptot*Ptot)));
+    
     // Set the four-momentum components of the light particle in the center of mass.
     double plxCM = -pf_CM*sin(theta_CM)*cos(phi_CM);
     double plyCM = -pf_CM*sin(theta_CM)*sin(phi_CM);
@@ -1297,8 +1510,47 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
     phi_h = (Heavy->GetPhi())*180/pi;
     if (PrintLevel>0)
       Heavy->Print();
-  }
 
+    // If the excitation energy allows the decay channel d1+d2 (provided that the user defined it)
+    // then make the decay happen.
+    double md1=0;      double md2=0;
+    if (DeDau1 && DeDau2) {
+      md1 = DeDau1->Mass;
+      md2 = DeDau2->Mass;
+      if ((md1+md2)<(mh+Ex)) {
+	// Final momentum of the daughter particles in the reference frame of the heavy particle.
+	FourVector Ph = Heavy->GetP();
+	double pfd = sqrt((Ph*Ph - pow(md1+md2,2))*(Ph*Ph - pow(md1-md2,2))/(4*(Ph*Ph)));
+	double theta_d1 = acos(Rdm->Uniform(-1,1));
+	double phi_d1 = Rdm->Uniform(-pi,pi);
+	DeDau1->SetP(sqrt(md1*md1 + pfd*pfd), pfd*sin(theta_d1)*cos(phi_d1),
+		     pfd*sin(theta_d1)*sin(phi_d1), -pfd*cos(theta_d1));
+	DeDau2->SetP(sqrt(md2*md2 + pfd*pfd), -pfd*sin(theta_d1)*cos(phi_d1),
+		     -pfd*sin(theta_d1)*sin(phi_d1), pfd*cos(theta_d1));
+	// Boost the two daughters from the ref. frame of the heavy particle to the lab.
+	double BetaHX;	double BetaHY;	double BetaHZ;
+	Heavy->GetBeta(BetaHX, BetaHY, BetaHZ);	
+	DeDau1->Boost(-BetaHX, -BetaHY, -BetaHZ);
+	DeDau1->SetX(tof, 0, 0, zr);
+	DeDau2->Boost(-BetaHX, -BetaHY, -BetaHZ);
+	DeDau2->SetX(tof, 0, 0, zr);
+      }
+      else 
+	ReactionAllowed = 0;
+    }
+
+    // Fill the leaves related to the reaction kinematics
+    Kb = Beam->GetKE();
+    Kl = Light->GetKE();
+    Kh = Heavy->GetKE();
+    this->theta_CM = theta_CM*180/pi;
+    this->phi_CM = phi_CM*180/pi;
+    theta_l = (Light->GetTheta())*180/pi;
+    phi_l = (Light->GetPhi())*180/pi;
+    theta_h = (Heavy->GetTheta())*180/pi;
+    phi_h = (Heavy->GetPhi())*180/pi;
+  }
+#endif
   return ReactionAllowed;
 }
 
@@ -1320,11 +1572,13 @@ void MUSIC_Simulator::SetStripEnergyResolution(float Sigma)
 ///////////////////////////////////////////////////////////////////////////////////
 void MUSIC_Simulator::SetTargetParticle(string Name)
 { 
+#if 1
   // Use the nuclide finder object to determine the mass and atomic
   // number of this particle. Mass must be in MeV/c^2) and Z (in e).
   double m = NuF->GetMass(Name, "MeV/c^2");
   int Z = NuF->GetZ(Name);
   Target = new Particle(Name, m, Z);
+#endif
   return;
 }
 
@@ -1332,7 +1586,7 @@ void MUSIC_Simulator::SetTargetParticle(string Name)
 
 
 ///////////////////////////////////////////////////////////////////////////////////
-// Core methode of this class, where the simulation takes place. Logic:
+// Core method of this class, where the simulation takes place. Logic:
 // Loop over events
 // 1. Set beam inital conditions (beam energy, position)
 // 2. Randomly select a reaction point (based on the beam energy range in MUSIC)
@@ -1345,6 +1599,7 @@ void MUSIC_Simulator::SetTargetParticle(string Name)
 ///////////////////////////////////////////////////////////////////////////////////
 void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double UserDT, int Wait)
 {
+#if 1
   // Verify that the anode geometry has been set
   if (VolAnode==0) {
     cout << "Anode geometry not specified. Use SetAnode method." << endl;
@@ -1379,7 +1634,7 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
   // for (int col=0; col<AnodeCols; col++)
   //   TraceB[col]->Draw("l same");
   // TraceB[AnodeCols]->Draw("*l same");
-  PrintCompoundEexc(Kb_after_window, DeltaEB_ave);
+  PrintEnergetics(Kb_after_window, DeltaEB_ave);
 
   //-------------------------------------------------------------------------------
   // Some kinematic variables
@@ -1458,9 +1713,14 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
       // reaction point to the entrance of MUSIC
       DeltaEB = PropagateParticle(Beam, evt, MaxTime, -UserDT);
       
-      // 5. Propagate heavy particle and calculate energy loss in the
-      // anode elements
-      DeltaEH = PropagateParticle(Heavy, evt, MaxTime, UserDT);
+      // 5. Propagate heavy particle (or decay daughters) and calculate energy 
+      // loss in the anode elements
+      if (DeDau1 && DeDau2) {
+	DeltaED1 = PropagateParticle(DeDau1, evt, MaxTime, UserDT);
+	DeltaED2 = PropagateParticle(DeDau2, evt, MaxTime, UserDT);
+      }
+      else
+	DeltaEH = PropagateParticle(Heavy, evt, MaxTime, UserDT);
       
       // 6. Propagate light particle and calculate energy loss in the
       // anode elements
@@ -1472,7 +1732,7 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
       cout << "Warninig: reaction energetically not allowed for event " << evt 
 	   << " (Kbr= " << Kbr << " MeV)." << endl;
     }
-    
+
     // 7. Compute detector response (i.e. DE for beam + light + heavy)
     // Clone the particle trajectories
     ComputeDetectorResponse(evt);
@@ -1482,7 +1742,7 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
     
     NTraces++;
   }
-  
+#endif
   return;
 }
 
@@ -1645,6 +1905,7 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
 ///////////////////////////////////////////////////////////////////////////////////
 void MUSIC_Simulator::UpdateVisuals(int evt, double Kbr, double zr, double TOF, int Wait)
 {
+#if 1
   // 3D stuff
   short C,S,W;
   if (Light!=0 && Light->SaveTrajectory) {
@@ -1661,12 +1922,76 @@ void MUSIC_Simulator::UpdateVisuals(int evt, double Kbr, double zr, double TOF, 
     TrajH[evt]->SetLineWidth(W);
     Eve->AddElement(TrajH[evt]);
   } 
+  if (DeDau1 && DeDau1->SaveTrajectory) {
+    DeDau1->GetTrajectoryAtt(C,S,W);
+    TrajD1[evt]->SetLineColor(C);
+    TrajD1[evt]->SetLineStyle(S);
+    TrajD1[evt]->SetLineWidth(W);
+    Eve->AddElement(TrajD1[evt]);
+  } 
+  if (DeDau2 && DeDau2->SaveTrajectory) {
+    DeDau2->GetTrajectoryAtt(C,S,W);
+    TrajD2[evt]->SetLineColor(C);
+    TrajD2[evt]->SetLineStyle(S);
+    TrajD2[evt]->SetLineWidth(W);
+    Eve->AddElement(TrajD2[evt]);
+  } 
   Eve->Redraw3D();
 
   // 2D stuff
+  // Traces of particles' energy loss and total.
+  TraceCan->cd(1);
+  // Legend
+  if (LegPart->GetNRows()==0) {
+    LegPart->AddEntry(Trace[evt][AnodeCols], "All particles", "l");
+    if (DeDau1 && DeDau2) {
+      LegPart->AddEntry(TraceD1[evt][AnodeCols], Form("%s",DeDau1->Name.c_str()), "l");
+      LegPart->AddEntry(TraceD2[evt][AnodeCols], Form("%s",DeDau2->Name.c_str()), "l");
+    }
+    else
+      LegPart->AddEntry(TraceH[evt][AnodeCols], Form("%s",Heavy->Name.c_str()), "l");
+    LegPart->AddEntry(TraceL[evt][AnodeCols], Form("%s",Light->Name.c_str()), "l");
+  }
+  LegPart->Draw();
+  // Update the kinematics label and then draw it
+  LabelKine->Clear();
+  LabelKine->AddText("Kinematics");
+  LabelKine->AddLine(0.0,0.76,1.0,0.76);
+  LabelKine->AddText(Form("beam: K=%.2f MeV  z_{r}=%.2f cm  tof=%.1f ns", Kbr, zr, TOF));
+  if (DeDau1 && DeDau2) {
+    LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
+			    DeDau1->Name.c_str(), DeDau1->GetKE(), DeDau1->GetTheta()*180/pi,
+			    DeDau1->GetPhi()*180/pi));
+    LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
+			    DeDau2->Name.c_str(), DeDau2->GetKE(), DeDau2->GetTheta()*180/pi,
+			    DeDau2->GetPhi()*180/pi));
+  }
+  else 
+    LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
+			    Heavy->Name.c_str(), Heavy->GetKE(), Heavy->GetTheta()*180/pi,
+			    Heavy->GetPhi()*180/pi));
+  LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
+			  Light->Name.c_str(), Light->GetKE(), Light->GetTheta()*180/pi,
+			  Light->GetPhi()*180/pi));
+  LabelKine->AddText(Form("#theta_{c.m.}=%.1f deg", theta_CM));
+
+  LabelKine->Draw();
+  // Draw traces
+  if (DeDau1 && DeDau2) {
+    TraceD1[evt][AnodeCols]->Draw("l same");
+    TraceD2[evt][AnodeCols]->Draw("l same");
+  }
+  else
+    TraceH[evt][AnodeCols]->Draw("l same");
+  TraceL[evt][AnodeCols]->Draw("l same");
+  Trace[evt][AnodeCols]->Draw("*l same");
+
   // Traces of energy loss in columns as a function of the strip
   // number.
-  TraceCan->cd(1);
+  TraceCan->cd(2);
+  TraceMult->GetYaxis()->SetRangeUser(0,AnodeCols+1);
+  TraceMult->Draw();
+#if 0
   for (int col=0; col<AnodeCols; col++)
     Trace[evt][col]->Draw("l same");
   Trace[evt][AnodeCols]->Draw("*l same");
@@ -1677,34 +2002,11 @@ void MUSIC_Simulator::UpdateVisuals(int evt, double Kbr, double zr, double TOF, 
       LegCol->AddEntry(Trace[evt][col], Form("Column %d", col),"l");
     // TraceCan->cd(3);
     // LegCol->Draw();
-    TraceCan->cd(1);      
+    TraceCan->cd(2);      
   }
   LegCol->Draw();
-  // Traces of particles' energy loss and total.
-  TraceCan->cd(2);
-  // Legend
-  if (LegPart->GetNRows()==0) {
-    LegPart->AddEntry(Trace[evt][AnodeCols], "All particles", "l");
-    LegPart->AddEntry(TraceH[evt][AnodeCols], Form("%s",Heavy->Name.c_str()), "l");
-    LegPart->AddEntry(TraceL[evt][AnodeCols], Form("%s",Light->Name.c_str()), "l");
-  }
-  LegPart->Draw();
-  // Update the kinematics label and then draw it
-  LabelKine->Clear();
-  LabelKine->AddText("Kinematics");
-  LabelKine->AddLine(0.0,0.76,1.0,0.76);
-  LabelKine->AddText(Form("beam: K=%.2f MeV  z_{r}=%.2f cm  tof=%.1f ns", Kbr, zr, TOF));
-  LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
-			  Heavy->Name.c_str(), Heavy->GetKE(), Heavy->GetTheta()*180/pi,
-			  Heavy->GetPhi()*180/pi));
-  LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
-			  Light->Name.c_str(), Light->GetKE(), Light->GetTheta()*180/pi,
-			  Light->GetPhi()*180/pi));
-  LabelKine->Draw();
-  // Draw traces
-  TraceH[evt][AnodeCols]->Draw("l same");
-  TraceL[evt][AnodeCols]->Draw("l same");
-  Trace[evt][AnodeCols]->Draw("*l same");
+#endif
+
   TraceCan->Update();
   if (Wait==1)
     TraceCan->WaitPrimitive();
@@ -1716,7 +2018,12 @@ void MUSIC_Simulator::UpdateVisuals(int evt, double Kbr, double zr, double TOF, 
       Eve->RemoveElement(TrajL[evt], (TEveElement*)Eve->GetCurrentEvent());
     if (Heavy!=0 && Heavy->SaveTrajectory)
       Eve->RemoveElement(TrajH[evt], (TEveElement*)Eve->GetCurrentEvent());
+    if (DeDau1!=0 && DeDau1->SaveTrajectory)
+      Eve->RemoveElement(TrajD1[evt], (TEveElement*)Eve->GetCurrentEvent());
+    if (DeDau2!=0 && DeDau2->SaveTrajectory)
+      Eve->RemoveElement(TrajD2[evt], (TEveElement*)Eve->GetCurrentEvent());
   }
+#endif
   return;
 }
 
@@ -1726,6 +2033,7 @@ void MUSIC_Simulator::UpdateVisuals(int evt, double Kbr, double zr, double TOF, 
 ///////////////////////////////////////////////////////////////////////////////////
 void MUSIC_Simulator::WriteTraces(char* FileName)
 {
+#if 1
   TFile* Output = new TFile(FileName, "RECREATE");
   if (Trace!=0)
     for (int n=0; n<NTraces; n++)
@@ -1738,6 +2046,7 @@ void MUSIC_Simulator::WriteTraces(char* FileName)
 	}
       }
   Output->Close();
+#endif
   return;
 }
 
