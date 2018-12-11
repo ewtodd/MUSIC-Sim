@@ -203,8 +203,12 @@ private:
   // Log file
   ofstream Log;
 
-  static const double c = 29.9792458;  // Speed of light in cm/ns.
-  static const double pi = 3.14159265359;
+  // Use these two lines when compiling with root-config ver5
+  //  static const double c = 29.9792458;  // Speed of light in cm/ns.
+  //  static const double pi = 3.14159265359;
+  // Use these two lines when compiling with root-config ver6
+  static constexpr double c = 29.9792458;  // Speed of light in cm/ns.
+  static constexpr double pi = 3.14159265359;
 };
 
 #endif

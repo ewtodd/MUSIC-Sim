@@ -75,9 +75,10 @@ MUSIC_Simulator::MUSIC_Simulator()
 
   // Canvas and legends for traces
   TraceCan = new TCanvas("TraceCan","Traces", 0, 0, 960, 1018);
-  TraceCan->Divide(1,2);
+  TraceCan->Divide(1,3);
   TraceCan->cd(1)->SetGrid();
   TraceCan->cd(2)->SetGrid();
+  TraceCan->cd(3)->SetGrid();
   //  TraceCan->cd(3)->SetGrid();
   LegCol = new TLegend(0.692,0.616,0.826,0.861);
   LegPart = new TLegend(0.692,0.616,0.826,0.861);
@@ -759,11 +760,11 @@ void MUSIC_Simulator::PrintEnergetics(double Kb, double** DeltaEB)
   cout.width(15);
   cout << "Ebmax[MeV]";
   cout.width(15);
-  cout << "EbMin[MeV]" << endl;
+  cout << "EbMin[MeV]";
   cout.width(15);
   cout << "Exmax[MeV]";
   cout.width(15);
-  cout << "Exmin[MeV]" << endl;
+  cout << "Exmin[MeV]";
   cout.width(15);
   cout << "ECMmax[MeV]";
   cout.width(15);
@@ -1783,7 +1784,7 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
   for (int stp=0; stp<AnodeStps; stp++)
     for (int col=0; col<AnodeCols+1; col++) 
       TraceB[col]->SetPoint(stp, stp, DeltaEB_ave[stp][col]);
-  PrintCompoundEexc(Kb_after_window, DeltaEB_ave);
+  //  PrintCompoundEexc(Kb_after_window, DeltaEB_ave);
   
   //-------------------------------------------------------------------------------
   // Some kinematic variables
@@ -1989,9 +1990,7 @@ void MUSIC_Simulator::UpdateVisuals(int evt, double Kbr, double zr, double TOF, 
   // Traces of energy loss in columns as a function of the strip
   // number.
   TraceCan->cd(2);
-  TraceMult->GetYaxis()->SetRangeUser(0,AnodeCols+1);
-  TraceMult->Draw();
-#if 0
+#if 1
   for (int col=0; col<AnodeCols; col++)
     Trace[evt][col]->Draw("l same");
   Trace[evt][AnodeCols]->Draw("*l same");
@@ -2006,6 +2005,12 @@ void MUSIC_Simulator::UpdateVisuals(int evt, double Kbr, double zr, double TOF, 
   }
   LegCol->Draw();
 #endif
+
+  // Draw multiplicity 
+  TraceCan->cd(3);
+  TraceMult->GetYaxis()->SetRangeUser(0,AnodeCols+1);
+  TraceMult->Draw();
+
 
   TraceCan->Update();
   if (Wait==1)
