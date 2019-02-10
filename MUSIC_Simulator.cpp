@@ -49,6 +49,12 @@ MUSIC_Simulator::MUSIC_Simulator()
   DeDau1 = 0;
   DeDau2 = 0;
 
+  // Evaporated particles and residues arrays
+  MaxEva = 20;                       // currently only allowing 20 evaporated particles
+  CurEva = 0;                        // This index will increase when a new evap particle is created
+  EvaP = new Particle*[MaxEva];
+  EvaR = new Particle*[MaxEva];
+
   // Nuclide finder object
   NuF = new NuclideFinder();
 
@@ -83,7 +89,6 @@ MUSIC_Simulator::MUSIC_Simulator()
   LegCol = new TLegend(0.692,0.616,0.826,0.861);
   LegPart = new TLegend(0.692,0.616,0.826,0.861);
   LabelKine = new TPaveText(0.152,0.679,0.437,0.875,"NDC");
-
   
   // Arrays for the TTree
   SimTree = 0;
@@ -268,16 +273,21 @@ void MUSIC_Simulator::CalculateExcEnergyRange()
 void MUSIC_Simulator::ComputeDetectorResponse(int evt)
 {
 #if 1
+  if (PrintLevel>0)
+    cout << "Compute detector response evt " << evt << endl;
   double Ethresh = 0.02;  // Right now the threshold for the multiplicity is hard-coded here.
   double DeltaE = 0;
   TraceMult->Reset();
   if (evt<Particle::MaxEvents) {
-    TrajH[evt] = (TEveStraightLineSet*)Heavy->AllTraj[evt]->Clone();
-    if (DeDau1 && DeDau2) {
-      TrajD1[evt] = (TEveStraightLineSet*)DeDau1->AllTraj[evt]->Clone();
-      TrajD2[evt] = (TEveStraightLineSet*)DeDau2->AllTraj[evt]->Clone();
+    if (Heavy) {
+      TrajH[evt] = (TEveStraightLineSet*)Heavy->AllTraj[evt]->Clone();
+      if (DeDau1 && DeDau2) {
+	TrajD1[evt] = (TEveStraightLineSet*)DeDau1->AllTraj[evt]->Clone();
+	TrajD2[evt] = (TEveStraightLineSet*)DeDau2->AllTraj[evt]->Clone();
+      }
     }
-    TrajL[evt] = (TEveStraightLineSet*)Light->AllTraj[evt]->Clone();
+    if (Light)
+      TrajL[evt] = (TEveStraightLineSet*)Light->AllTraj[evt]->Clone();
   }
   
   // Reset the SimTree leaves
@@ -306,12 +316,18 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt)
 	TraceD1[evt][col]->SetPoint(stp, stp, DeltaED1[stp][col]);
 	TraceD2[evt][col]->SetPoint(stp, stp, DeltaED2[stp][col]);
       }
-      else
+      else if (Heavy)
 	TraceH[evt][col]->SetPoint(stp, stp, DeltaEH[stp][col]);
-      TraceL[evt][col]->SetPoint(stp, stp, DeltaEL[stp][col]);
+      if (Light)
+	TraceL[evt][col]->SetPoint(stp, stp, DeltaEL[stp][col]);
       
-      DeltaE = DeltaEB[stp][col] + DeltaEL[stp][col] + DeltaEH[stp][col] + 
-	DeltaED1[stp][col] + DeltaED2[stp][col];
+      // DeltaE = DeltaEB[stp][col] + DeltaEL[stp][col] + DeltaEH[stp][col] + 
+      // 	DeltaED1[stp][col] + DeltaED2[stp][col];
+      DeltaE = DeltaEB[stp][col];
+      for (int er=0; er<CurEva; er++) {
+	DeltaE += DeltaE_EvaP[er][stp][col];
+	DeltaE += DeltaE_EvaR[er][stp][col];
+      }
       
       if (DeltaE>Ethresh && col<AnodeCols)
 	mult++;
@@ -341,9 +357,9 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt)
        }
       Trace[evt][col]->SetPoint(stp, stp, DeltaE);
       if (PrintLevel>0)
-	cout << stp << " " << col << ": " << DeltaEB[stp][col] << " " << DeltaEL[stp][col] 
-	     << " " << DeltaEH[stp][col] << " " << DeltaED1[stp][col] << " " << DeltaED2[stp][col] 
-	     << endl;
+	cout << stp << " " << col << ": " << DeltaE << " = " << DeltaEB[stp][col] << "+" 
+	     << DeltaEL[stp][col] << "+" << DeltaEH[stp][col] << "+" << DeltaED1[stp][col] 
+	     << "+" << DeltaED2[stp][col] << "+E.R."<< endl;
     }
     TraceMult->Fill(stp, mult);
   }
@@ -415,23 +431,27 @@ void MUSIC_Simulator::CreateTracesAndTrajectories(int NEvents)
 	Trace[evt][col]->SetLineColor(kBlack);
 	Trace[evt][col]->SetLineWidth(2);
 	// heavy
-	TraceH[evt][col]->SetName(Form("evt %d total %s", evt, Heavy->Name.c_str()));
-	TraceH[evt][col]->SetLineColor(Heavy->GetColor());
-	TraceH[evt][col]->SetLineWidth(2);
-	if (DeDau1 && DeDau2) {
-	  // decay daughter1
-	  TraceD1[evt][col]->SetName(Form("evt %d total %s", evt, DeDau1->Name.c_str()));
-	  TraceD1[evt][col]->SetLineColor(DeDau1->GetColor());
-	  TraceD1[evt][col]->SetLineWidth(2);
-	  // decay daughter2
-	  TraceD2[evt][col]->SetName(Form("evt %d total %s", evt, DeDau2->Name.c_str()));
-	  TraceD2[evt][col]->SetLineColor(DeDau2->GetColor());
-	  TraceD2[evt][col]->SetLineWidth(2);
+	if (Heavy) {
+	  TraceH[evt][col]->SetName(Form("evt %d total %s", evt, Heavy->Name.c_str()));
+	  TraceH[evt][col]->SetLineColor(Heavy->GetColor());
+	  TraceH[evt][col]->SetLineWidth(2);
+	  if (DeDau1 && DeDau2) {
+	    // decay daughter1
+	    TraceD1[evt][col]->SetName(Form("evt %d total %s", evt, DeDau1->Name.c_str()));
+	    TraceD1[evt][col]->SetLineColor(DeDau1->GetColor());
+	    TraceD1[evt][col]->SetLineWidth(2);
+	    // decay daughter2
+	    TraceD2[evt][col]->SetName(Form("evt %d total %s", evt, DeDau2->Name.c_str()));
+	    TraceD2[evt][col]->SetLineColor(DeDau2->GetColor());
+	    TraceD2[evt][col]->SetLineWidth(2);
+	  }
 	}
 	// light
-	TraceL[evt][col]->SetName(Form("evt %d total %s", evt, Light->Name.c_str()));
-	TraceL[evt][col]->SetLineColor(Light->GetColor());
-	TraceL[evt][col]->SetLineWidth(2);
+	if (Light) {
+	  TraceL[evt][col]->SetName(Form("evt %d total %s", evt, Light->Name.c_str()));
+	  TraceL[evt][col]->SetLineColor(Light->GetColor());
+	  TraceL[evt][col]->SetLineWidth(2);
+	}
       }
       else {
 	Trace[evt][col]->SetName(Form("evt %d col %d", evt, col));
@@ -439,27 +459,31 @@ void MUSIC_Simulator::CreateTracesAndTrajectories(int NEvents)
 	Trace[evt][col]->SetLineStyle(2);
 	Trace[evt][col]->SetLineWidth(2);
 	// heavy
-	TraceH[evt][col]->SetName(Form("evt %d col %d %s", evt, col, Heavy->Name.c_str()));
-	TraceH[evt][col]->SetLineColor(Chroma[col]);
-	TraceH[evt][col]->SetLineStyle(2);
-	TraceH[evt][col]->SetLineWidth(2);
-	if (DeDau1 && DeDau2) {
-	  // decay daughter1
-	  TraceD1[evt][col]->SetName(Form("evt %d col %d %s", evt, col, DeDau1->Name.c_str()));
-	  TraceD1[evt][col]->SetLineColor(Chroma[col]);
-	  TraceD1[evt][col]->SetLineStyle(2);
-	  TraceD1[evt][col]->SetLineWidth(2);
-	  // decay daughter1
-	  TraceD2[evt][col]->SetName(Form("evt %d col %d %s", evt, col, DeDau2->Name.c_str()));
-	  TraceD2[evt][col]->SetLineColor(Chroma[col]);
-	  TraceD2[evt][col]->SetLineStyle(2);
-	  TraceD2[evt][col]->SetLineWidth(2);
+	if (Heavy) {
+	  TraceH[evt][col]->SetName(Form("evt %d col %d %s", evt, col, Heavy->Name.c_str()));
+	  TraceH[evt][col]->SetLineColor(Chroma[col]);
+	  TraceH[evt][col]->SetLineStyle(2);
+	  TraceH[evt][col]->SetLineWidth(2);
+	  if (DeDau1 && DeDau2) {
+	    // decay daughter1
+	    TraceD1[evt][col]->SetName(Form("evt %d col %d %s", evt, col, DeDau1->Name.c_str()));
+	    TraceD1[evt][col]->SetLineColor(Chroma[col]);
+	    TraceD1[evt][col]->SetLineStyle(2);
+	    TraceD1[evt][col]->SetLineWidth(2);
+	    // decay daughter1
+	    TraceD2[evt][col]->SetName(Form("evt %d col %d %s", evt, col, DeDau2->Name.c_str()));
+	    TraceD2[evt][col]->SetLineColor(Chroma[col]);
+	    TraceD2[evt][col]->SetLineStyle(2);
+	    TraceD2[evt][col]->SetLineWidth(2);
+	  }
 	}
 	// light
-	TraceL[evt][col]->SetName(Form("evt %d col %d %s", evt, col, Light->Name.c_str()));
-	TraceL[evt][col]->SetLineColor(Chroma[col]);
-	TraceL[evt][col]->SetLineStyle(2);
-	TraceL[evt][col]->SetLineWidth(2);
+	if (Light) {
+	  TraceL[evt][col]->SetName(Form("evt %d col %d %s", evt, col, Light->Name.c_str()));
+	  TraceL[evt][col]->SetLineColor(Chroma[col]);
+	  TraceL[evt][col]->SetLineStyle(2);
+	  TraceL[evt][col]->SetLineWidth(2);
+	}
       }
     }
   }
@@ -853,6 +877,13 @@ double** MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxT
     for (int col = 0; col<AnodeCols+1; col++) 
       DE[stp][col] = 0;
   }
+
+  if (PO->DoNotPropagate) {
+    if (PrintLevel>0)
+      cout << "Propagator! " << PO->Name << " not propagating" << endl;
+    return DE;
+  }
+
 #if 1
   TGeoVolume* Vol = 0;
   bool Skip = 0;
@@ -951,7 +982,7 @@ double** MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxT
     // Exit the while loop if the particle has stopped.
     if (Kf<0.001) {
       if (PrintLevel>0) {
-	cout << "STOPPED!" << endl;
+	cout << "STOPS INSIDE ACTIVE VOLUME!" << endl;
 	if (Kf<0)	
 	  cout << "Less than ZERO! " << Kf << endl;
       }    
@@ -1198,6 +1229,22 @@ double** MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxT
 	  DeltaED2[stp][col] = 0;
 	}
       }
+      // New stuff for evaporation residues
+      DeltaE_EvaR = new double**[MaxEva];
+      DeltaE_EvaP = new double**[MaxEva];
+      for (int er=0; er<MaxEva; er++) {	
+	DeltaE_EvaR[er] = new double*[AnodeStps];
+	DeltaE_EvaP[er] = new double*[AnodeStps];
+	for (int stp=0; stp<AnodeStps; stp++) {	  
+	  DeltaE_EvaR[er][stp] = new double[AnodeCols+1];
+	  DeltaE_EvaP[er][stp] = new double[AnodeCols+1];
+	  for (int col=0; col<AnodeCols+1; col++) {
+	    DeltaE_EvaR[er][stp][col] = 0;
+	    DeltaE_EvaP[er][stp][col] = 0;
+	  }
+	}
+      }
+
     } // end if (AnodeStps>0 && AnodeCols>0)
     
     HCTB = new TH2F("HCTB","Beam", AnodeStps,-0.5, AnodeStps-0.5, ELossBins,0,MaxELoss);
@@ -1258,12 +1305,21 @@ void MUSIC_Simulator::SetCompoundParticle(string Name)
   // number of this particle. Mass must be in MeV/c^2) and Z (in e).
   double m = NuF->GetMass(Name, "MeV/c^2");
   int Z = NuF->GetZ(Name);
-  Compound = new Particle(Name, m, Z, true /*SaveTrajectories on*/);
-  //  Compound->SetTrajectoryAtt((short)Color);
-  // Need excitation energy based on kinematics
-
-  //  Compound->SetExcEnergies(NEexc, Eexc);
-  // I would be good to print the excitation energy of the compound 
+  Compound = new Particle(Name, m, Z, false /*SaveTrajectories off*/);
+  // If both beam and target particles have been set, print the
+  // maximum compund excitation energy, ExMax
+  if (Beam && Target) {
+    double mb = Beam->Mass;
+    double Kb = Kb_after_window;
+    double pb = sqrt(2*mb*Kb*(1 + Kb/(2*mb)));
+    double Eb = sqrt(mb*mb + pb*pb);
+    FourVector Pb("Pb", Eb, 0, 0, pb);
+    FourVector Pt("Pt", Target->Mass, 0, 0, 0);
+    FourVector Ptot("Total four-mom. in the lab");
+    Ptot = Pb + Pt;
+    double ExMax = sqrt(Ptot*Ptot) - Compound->Mass;
+    cout << "Maximum excitation energy of " << Name << " (compound) = " << ExMax << " MeV" << endl;
+  }
 #endif
   return;
 }
@@ -1291,7 +1347,6 @@ void MUSIC_Simulator::SetDecayDaughter1(string Name, int Color, string ELossFile
 ///////////////////////////////////////////////////////////////////////////////////
 void MUSIC_Simulator::SetDecayDaughter2(string Name, int Color, string ELossFile)
 {
-#if 1
   // Use the nuclide finder object to determine the mass and atomic
   // number of this particle. Mass must be in MeV/c^2) and Z (in e).
   double m = NuF->GetMass(Name, "MeV/c^2");
@@ -1300,16 +1355,51 @@ void MUSIC_Simulator::SetDecayDaughter2(string Name, int Color, string ELossFile
   DeDau2->SetTrajectoryAtt((short)Color);
   // Currently, this simulation is restricted to one medium (gas) in MUSIC.
   DeDau2->SetMedium(ELossFile);
-#endif
   return;
 }
 
+///////////////////////////////////////////////////////////////////////////////////
+// Create evaporation residue and particle objects.
+// Use the nuclide finder object to determine the mass and atomic
+// number of this particle. Mass must be in MeV/c^2 and Z in e.
+// Currently particles restricted to one medium (gas).
+///////////////////////////////////////////////////////////////////////////////////
+void MUSIC_Simulator::SetEvapResAndPart(string ResName, string ResELossFile, 
+					string ParName,	string ParELossFile,
+					int Color)
+{
+  if (CurEva>=MaxEva) {
+    cout << "Warning: No more than " << MaxEva << " evaporation particles allowed." << endl;  
+    return;
+  }
+  cout << "Evaporation residue: " << CurEva << endl;
 
+  // Evaporation residue
+  double mr = NuF->GetMass(ResName, "MeV/c^2");
+  int Zr = NuF->GetZ(ResName);
+  EvaR[CurEva] = new Particle(ResName, mr, Zr, false /*SaveTrajectories off*/);
+  EvaR[CurEva]->SetTrajectoryAtt((short)Color);
+  EvaR[CurEva]->SetMedium(ResELossFile);
+  EvaR[CurEva]->Print();  
+
+  // Evaporated particle
+  double mp = NuF->GetMass(ParName, "MeV/c^2");
+  int Zp = NuF->GetZ(ParName);
+  ParName += std::to_string(CurEva);
+  EvaP[CurEva] = new Particle(ParName, mp, Zp, false /*SaveTrajectories off*/);
+  EvaP[CurEva]->SetTrajectoryAtt((short)Color);
+  EvaP[CurEva]->SetMedium(ParELossFile);
+  EvaP[CurEva]->Print();
+  CurEva++;
+  return;
+}
+ 
+ 
 ///////////////////////////////////////////////////////////////////////////////////
 // Create the heavy particle (evaporation residue) object.
 ///////////////////////////////////////////////////////////////////////////////////
-void MUSIC_Simulator::SetHeavyParticle(string Name, int Color, string ELossFile, int NEexc,
-				       double* Eexc)
+ void MUSIC_Simulator::SetHeavyParticle(string Name, int Color, string ELossFile, int NEexc,
+    double* Eexc)
 {
 #if 1
   // Use the nuclide finder object to determine the mass and atomic
@@ -1353,8 +1443,8 @@ void MUSIC_Simulator::SetInitialKinematics(double Kbi/*MeV*/)
 
 
 ///////////////////////////////////////////////////////////////////////////////////
-// Create the light particle (evaporation residue) object. It is assumed that the 
-// light particle (e.g. p, n, alpha) is in its ground state.
+// Create the light particle object. It is assumed that the light particle 
+// (e.g. p, n, alpha) is in its ground state.
 ///////////////////////////////////////////////////////////////////////////////////
 void MUSIC_Simulator::SetLightParticle(string Name, int Color, string ELossFile)
 {
@@ -1413,9 +1503,6 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
   double mb = Beam->Mass;
   double mt = Target->Mass;
   double mc = Compound->Mass;
-  double ml = Light->Mass;
-  double mh = Heavy->Mass;
-  double Ex = Heavy->GetEexc();
 
   // Linear momentum and total energy of the beam particle in the lab.
   double pb = sqrt(2*mb*Kbr*(1 + Kbr/2/mb));
@@ -1451,6 +1538,7 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
   
   // Exc. energy of compound particle.
   Compound->SetP(Ptot);
+  Compound->SetX(tof, 0, 0, zr);
   if (PrintLevel>0) {
     cout << "--- Compound particle ----------------------------------------------" << endl;
     Compound->Print();
@@ -1458,99 +1546,145 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
   if (PrintLevel>0)
     cout << "Eexc(" << Compound->Name << ") = " << sqrt(Ptot*Ptot) - mc << " MeV" << endl;
 
-  // If the user did not specify the value of theta and phi, randomly
-  // select the scattering angle in the center of mass.
-  if (theta_CM==-1 && phi_CM==-1) {
-    theta_CM = acos(Rdm->Uniform(-1,1));
-    phi_CM = Rdm->Uniform(-pi,pi);
+  // Assume none of the particles will be propagated
+  for (int er=0; er<CurEva; er++) {
+    EvaP[er]->DoNotPropagate = true;
+    EvaR[er]->DoNotPropagate = true;
   }
-  if (PrintLevel>0) {
-    cout << "--- Outgoing particles (heavy and light) ---------------------------" << endl;
-    cout << "theta_cm=" << theta_CM*180/pi << "   phi_cm=" << phi_CM*180/pi << endl;
-  }
-  
-  // Verify that the reaction can occur.
-  // In this case, the reaction is NOT energetically allowed.
-  if (Ptot*Ptot<pow(ml+mh+Ex,2)) {
-    Light->SetP(ml, 0, 0, 0);
-    Light->SetX(tof, 0, 0, zr);
-    Heavy->SetP(mh+Ex, 0, 0, 0);
-    Heavy->SetX(tof, 0, 0, zr);
-    ReactionAllowed = 0;
-  }
-  // In this case, the reaction IS energetically allowed.
-  else {
-    // Final momentum in the CM reference frame (Ptot*Ptot is an invariant quantity).
-    double pf_CM = sqrt((Ptot*Ptot - pow(ml+mh+Ex,2))*(Ptot*Ptot - pow(ml-mh-Ex,2))/(4*(Ptot*Ptot)));
+
+  // Loop over the evaporation residues (heavy) and particles (light particle always in g.s.)
+  for (int er=0; er<CurEva; er++) {
+    double ml = EvaP[er]->Mass;
+    double mh = EvaR[er]->Mass;
+    double Qvalue = sqrt(Ptot*Ptot) - ml - mh;
+    if (Qvalue<0 && er>0) {
+      // The present reaction is not energetically allowed
+      // Propagate the previuos evap res and exit the loop
+      EvaR[er-1]->DoNotPropagate = false;
+      break;
+    }
+    double Ex = Rdm->Uniform(Qvalue/2, Qvalue); // assuming it prefers to stay highly excited
+
+    // If the user did not specify the value of theta and phi, randomly
+    // select the scattering angle in the center of mass.
+    if (theta_CM==-1 && phi_CM==-1) {
+      theta_CM = acos(Rdm->Uniform(-1,1));
+      phi_CM = Rdm->Uniform(-pi,pi);
+    }
+    if (PrintLevel>0) {
+      cout << "--- Outgoing particles (evap res = " << er << ") -------------------------------" 
+	   << endl;
+      cout << "Ex=" << Ex << " MeV   theta_cm=" << theta_CM*180/pi << "   phi_cm=" << phi_CM*180/pi << endl;
+    }
     
+    // Verify whether more particles can evaporate from the current residue or compound (Ptot)
+    // In this case, the current light particle cannot evaporate from the previous reside/compound.
+    // if (Ptot*Ptot<pow(ml+mh+Ex,2)) {
+    //   EvaP[er]->SetP(ml, 0, 0, 0);
+    //   EvaP[er]->SetX(tof, 0, 0, zr);
+    //   EvaP[er]->DoNotPropagate = true;
+    //   EvaR[er]->SetP(mh+Ex, 0, 0, 0);
+    //   EvaR[er]->SetX(tof, 0, 0, zr);
+    //   EvaR[er]->DoNotPropagate = true;
+    //   break;
+    // }
+    // // In this case, the reaction IS energetically allowed.
+    // else {
+    // Final momentum in the CM reference frame (Ptot*Ptot is an invariant quantity).
+    double pf_CM = sqrt((Ptot*Ptot-pow(ml+mh+Ex,2))*(Ptot*Ptot-pow(ml-mh-Ex,2))/(4*(Ptot*Ptot)));
+      
     // Set the four-momentum components of the light particle in the center of mass.
     double plxCM = -pf_CM*sin(theta_CM)*cos(phi_CM);
     double plyCM = -pf_CM*sin(theta_CM)*sin(phi_CM);
     double plzCM = -pf_CM*cos(theta_CM);
     double ElCM = sqrt(ml*ml + pf_CM*pf_CM);
-    Light->SetP(ElCM, plxCM, plyCM, plzCM);
-    
+    EvaP[er]->SetP(ElCM, plxCM, plyCM, plzCM);
+
+    // Set the four-momentum components of the heavy particle in the center of mass.
+    double phxCM = pf_CM*sin(theta_CM)*cos(phi_CM);
+    double phyCM = pf_CM*sin(theta_CM)*sin(phi_CM);
+    double phzCM = pf_CM*cos(theta_CM);
+    double EhCM = sqrt((mh+Ex)*(mh+Ex) + pf_CM*pf_CM);
+    EvaR[er]->SetP(EhCM, phxCM, phyCM, phzCM);
+      
     // Do a Lorentz transformation (boost) into the lab reference frame.
     // I've double checked the sign of the boost and is correct (-Beta).
-    Light->Boost(-BetaX, -BetaY, -BetaZ);
-
+    EvaP[er]->Boost(-BetaX, -BetaY, -BetaZ);
+    EvaR[er]->Boost(-BetaX, -BetaY, -BetaZ); 
+    // Now the 4-mom of the evap res is Ptot
+    Ptot = EvaR[er]->GetP();
+      
     // Save the angles in degrees
-    theta_l = (Light->GetTheta())*180/pi;
-    phi_l = (Light->GetPhi())*180/pi;
+    theta_l = (EvaP[er]->GetTheta())*180/pi;
+    phi_l = (EvaP[er]->GetPhi())*180/pi;
     
-    // Initial position of the light particle (at the target).
-    Light->SetX(tof, 0, 0, zr);
+    // Initial position of the light particle (at the target). This
+    // particle will be propagated.
+    EvaP[er]->SetX(tof, 0, 0, zr);
+    EvaP[er]->DoNotPropagate = false;
     if (PrintLevel>0)
-      Light->Print();
-    
-    // Four-momentum of the heavy recoil (lab).
-    Heavy->SetP(Beam->GetP() + Target->GetP() - Light->GetP());
-    Heavy->SetX(tof, 0, 0, zr);
-    // Save the angles in degrees
-    theta_h = (Heavy->GetTheta())*180/pi;
-    phi_h = (Heavy->GetPhi())*180/pi;
-    if (PrintLevel>0)
-      Heavy->Print();
+      EvaP[er]->Print();
 
-    // If the excitation energy allows the decay channel d1+d2 (provided that the user defined it)
-    // then make the decay happen.
-    double md1=0;      double md2=0;
-    if (DeDau1 && DeDau2) {
-      md1 = DeDau1->Mass;
-      md2 = DeDau2->Mass;
-      if ((md1+md2)<(mh+Ex)) {
-	// Final momentum of the daughter particles in the reference frame of the heavy particle.
-	FourVector Ph = Heavy->GetP();
-	double pfd = sqrt((Ph*Ph - pow(md1+md2,2))*(Ph*Ph - pow(md1-md2,2))/(4*(Ph*Ph)));
-	double theta_d1 = acos(Rdm->Uniform(-1,1));
-	double phi_d1 = Rdm->Uniform(-pi,pi);
-	DeDau1->SetP(sqrt(md1*md1 + pfd*pfd), pfd*sin(theta_d1)*cos(phi_d1),
-		     pfd*sin(theta_d1)*sin(phi_d1), -pfd*cos(theta_d1));
-	DeDau2->SetP(sqrt(md2*md2 + pfd*pfd), -pfd*sin(theta_d1)*cos(phi_d1),
-		     -pfd*sin(theta_d1)*sin(phi_d1), pfd*cos(theta_d1));
-	// Boost the two daughters from the ref. frame of the heavy particle to the lab.
-	double BetaHX;	double BetaHY;	double BetaHZ;
-	Heavy->GetBeta(BetaHX, BetaHY, BetaHZ);	
-	DeDau1->Boost(-BetaHX, -BetaHY, -BetaHZ);
-	DeDau1->SetX(tof, 0, 0, zr);
-	DeDau2->Boost(-BetaHX, -BetaHY, -BetaHZ);
-	DeDau2->SetX(tof, 0, 0, zr);
-      }
-      else 
-	ReactionAllowed = 0;
+    
+    // Initial position of the evaporation residue (at the
+    // target). We don't yet know if this partivle will be
+    // propagated (this will be known in the next cycle)
+    EvaR[er]->SetX(tof, 0, 0, zr);
+    // Save the angles in degrees
+    theta_h = (EvaR[er]->GetTheta())*180/pi;
+    phi_h = (EvaR[er]->GetPhi())*180/pi;
+    if (PrintLevel>0)
+      EvaR[er]->Print();
+
+    // Get the beta (v/c) for the evaporation residue. Will be used in the next 'er'.
+    EvaR[er]->GetBeta(BetaX, BetaY, BetaZ);
+    if (PrintLevel>0) {
+      cout << "Evap residue beta (v/c):" << endl;
+      cout << "\tBetaX=" << BetaX << "  BetaY=" << BetaY << "  BetaZ=" << BetaZ << endl; 
     }
+  }
+    
+    //   // If the excitation energy allows the decay channel d1+d2 (provided that the user defined it)
+    //   // then make the decay happen.
+    //   double md1=0;      double md2=0;
+    //   if (DeDau1 && DeDau2) {
+    // 	md1 = DeDau1->Mass;
+    // 	md2 = DeDau2->Mass;
+    // 	if ((md1+md2)<(mh+Ex)) {
+    // 	  // Final momentum of the daughter particles in the reference frame of the heavy particle.
+    // 	  FourVector Ph = EvaR[er]->GetP();
+    // 	  double pfd = sqrt((Ph*Ph - pow(md1+md2,2))*(Ph*Ph - pow(md1-md2,2))/(4*(Ph*Ph)));
+    // 	  double theta_d1 = acos(Rdm->Uniform(-1,1));
+    // 	  double phi_d1 = Rdm->Uniform(-pi,pi);
+    // 	  DeDau1->SetP(sqrt(md1*md1 + pfd*pfd), pfd*sin(theta_d1)*cos(phi_d1),
+    // 		       pfd*sin(theta_d1)*sin(phi_d1), -pfd*cos(theta_d1));
+    // 	  DeDau2->SetP(sqrt(md2*md2 + pfd*pfd), -pfd*sin(theta_d1)*cos(phi_d1),
+    // 		       -pfd*sin(theta_d1)*sin(phi_d1), pfd*cos(theta_d1));
+    // 	  // Boost the two daughters from the ref. frame of the heavy particle to the lab.
+    // 	  double BetaHX;	double BetaHY;	double BetaHZ;
+    // 	  EvaR[er]->GetBeta(BetaHX, BetaHY, BetaHZ);	
+    // 	  DeDau1->Boost(-BetaHX, -BetaHY, -BetaHZ);
+    // 	  DeDau1->SetX(tof, 0, 0, zr);
+    // 	  DeDau2->Boost(-BetaHX, -BetaHY, -BetaHZ);
+    // 	  DeDau2->SetX(tof, 0, 0, zr);
+    // 	}
+    // 	else 
+    // 	  ReactionAllowed = 0;
+    //   }
+    // }
 
-    // Fill the leaves related to the reaction kinematics
-    Kb = Beam->GetKE();
+  // Fill the leaves related to the reaction kinematics
+  Kb = Beam->GetKE();
+  //  Kh = EvaR[er]->GetKE();
+  this->theta_CM = theta_CM*180/pi;
+  this->phi_CM = phi_CM*180/pi;
+  if (Light) {
     Kl = Light->GetKE();
-    Kh = Heavy->GetKE();
-    this->theta_CM = theta_CM*180/pi;
-    this->phi_CM = phi_CM*180/pi;
     theta_l = (Light->GetTheta())*180/pi;
     phi_l = (Light->GetPhi())*180/pi;
-    theta_h = (Heavy->GetTheta())*180/pi;
-    phi_h = (Heavy->GetPhi())*180/pi;
   }
+  //  theta_h = (EvaR[er]->GetTheta())*180/pi;
+  // phi_h = (EvaR[er]->GetPhi())*180/pi;
 #endif
   return ReactionAllowed;
 }
@@ -1692,6 +1826,10 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
 	DeltaEB[stp][col] = 0;
 	DeltaEL[stp][col] = 0;
 	DeltaEH[stp][col] = 0;
+	for (int er=0; er<CurEva; er++) {
+	  DeltaE_EvaP[er][stp][col] = 0;
+	  DeltaE_EvaR[er][stp][col] = 0;
+	}
       }
     
     // 1. Set beam inital conditions (beam energy, position)
@@ -1716,16 +1854,22 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
       
       // 5. Propagate heavy particle (or decay daughters) and calculate energy 
       // loss in the anode elements
-      if (DeDau1 && DeDau2) {
-	DeltaED1 = PropagateParticle(DeDau1, evt, MaxTime, UserDT);
-	DeltaED2 = PropagateParticle(DeDau2, evt, MaxTime, UserDT);
-      }
-      else
-	DeltaEH = PropagateParticle(Heavy, evt, MaxTime, UserDT);
+      // if (DeDau1 && DeDau2) {
+      // 	DeltaED1 = PropagateParticle(DeDau1, evt, MaxTime, UserDT);
+      // 	DeltaED2 = PropagateParticle(DeDau2, evt, MaxTime, UserDT);
+      // }
+      // else
+      // 	DeltaEH = PropagateParticle(Heavy, evt, MaxTime, UserDT);
       
       // 6. Propagate light particle and calculate energy loss in the
       // anode elements
-      DeltaEL = PropagateParticle(Light, evt, MaxTime, UserDT);
+      //   DeltaEL = PropagateParticle(Light, evt, MaxTime, UserDT);
+
+      // 5-6. Propagate outgoing particles (evaporation residues)
+      for (int er=0; er<CurEva; er++) {
+	DeltaE_EvaP[er] = PropagateParticle(EvaP[er], evt, MaxTime, UserDT);
+	DeltaE_EvaR[er] = PropagateParticle(EvaR[er], evt, MaxTime, UserDT);
+      }
     }
     else {
       Beam->Copy(BeamInit);
@@ -1907,6 +2051,10 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
 void MUSIC_Simulator::UpdateVisuals(int evt, double Kbr, double zr, double TOF, int Wait)
 {
 #if 1
+  if (PrintLevel>0)
+    cout << "Update visuals: evt=" << evt << " Kbr=" << Kbr << " MeV zr=" << zr << " cm TOF=" 
+	 << TOF << " ns Wait=" << Wait << "\n3D stuff ..." << endl;
+
   // 3D stuff
   short C,S,W;
   if (Light!=0 && Light->SaveTrajectory) {
@@ -1940,6 +2088,8 @@ void MUSIC_Simulator::UpdateVisuals(int evt, double Kbr, double zr, double TOF, 
   Eve->Redraw3D();
 
   // 2D stuff
+  if (PrintLevel>0)
+    cout << "2D stuff..." << endl;
   // Traces of particles' energy loss and total.
   TraceCan->cd(1);
   // Legend
@@ -1949,9 +2099,10 @@ void MUSIC_Simulator::UpdateVisuals(int evt, double Kbr, double zr, double TOF, 
       LegPart->AddEntry(TraceD1[evt][AnodeCols], Form("%s",DeDau1->Name.c_str()), "l");
       LegPart->AddEntry(TraceD2[evt][AnodeCols], Form("%s",DeDau2->Name.c_str()), "l");
     }
-    else
+    else if (Heavy)
       LegPart->AddEntry(TraceH[evt][AnodeCols], Form("%s",Heavy->Name.c_str()), "l");
-    LegPart->AddEntry(TraceL[evt][AnodeCols], Form("%s",Light->Name.c_str()), "l");
+    if (Light)
+      LegPart->AddEntry(TraceL[evt][AnodeCols], Form("%s",Light->Name.c_str()), "l");
   }
   LegPart->Draw();
   // Update the kinematics label and then draw it
@@ -1967,24 +2118,29 @@ void MUSIC_Simulator::UpdateVisuals(int evt, double Kbr, double zr, double TOF, 
 			    DeDau2->Name.c_str(), DeDau2->GetKE(), DeDau2->GetTheta()*180/pi,
 			    DeDau2->GetPhi()*180/pi));
   }
-  else 
+  else if (Heavy)
     LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
 			    Heavy->Name.c_str(), Heavy->GetKE(), Heavy->GetTheta()*180/pi,
 			    Heavy->GetPhi()*180/pi));
-  LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
-			  Light->Name.c_str(), Light->GetKE(), Light->GetTheta()*180/pi,
-			  Light->GetPhi()*180/pi));
+  if (Light)
+    LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
+			    Light->Name.c_str(), Light->GetKE(), Light->GetTheta()*180/pi,
+			    Light->GetPhi()*180/pi));
   LabelKine->AddText(Form("#theta_{c.m.}=%.1f deg", theta_CM));
 
   LabelKine->Draw();
+
   // Draw traces
+  if (PrintLevel>0)
+    cout << "Drawing traces ..." << endl;
   if (DeDau1 && DeDau2) {
     TraceD1[evt][AnodeCols]->Draw("l same");
     TraceD2[evt][AnodeCols]->Draw("l same");
   }
-  else
+  else if (Heavy)
     TraceH[evt][AnodeCols]->Draw("l same");
-  TraceL[evt][AnodeCols]->Draw("l same");
+  if (Light)
+    TraceL[evt][AnodeCols]->Draw("l same");
   Trace[evt][AnodeCols]->Draw("*l same");
 
   // Traces of energy loss in columns as a function of the strip

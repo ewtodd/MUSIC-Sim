@@ -1,6 +1,5 @@
 {
   string IncludePath = "../physicstools/";
-  //string IncludePath = "/home/dasago/Dropbox/Codes/PhysicsTools/";
   const int numlibs = 4;
   string mylib[numlibs];
   mylib[0] = IncludePath + "EnergyLoss.so";
@@ -16,4 +15,6 @@
       cout << mylib[l] << " loaded" << endl;
     gROOT->ProcessLine(".L MUSIC_Simulator.cpp++");
   }
+  else 
+    cout << "MUSIC Simulator not compiled! Physics Tools not loaded." << endl;
 }

@@ -71,11 +71,12 @@ public:
   void SetBeamParticle(std::string Name, int Color, std::string ELossFile, double KineticE/*MeV*/);
   //  void SetBeamSpot(double diameter);
   void SetCompoundParticle(std::string Name);
-  void SetHeavyParticle(std::string Name, int Color, std::string ELossFile, int NEexc=0,
-			double* Eexc=0/*MeV*/);
-
   void SetDecayDaughter1(std::string Name, int Color, std::string ELossFile);
   void SetDecayDaughter2(std::string Name, int Color, std::string ELossFile);
+  void SetEvapResAndPart(string ResName, string ResELossFile, string ParName, string ParELossFile,
+			 int Color);
+  void SetHeavyParticle(std::string Name, int Color, std::string ELossFile, int NEexc=0,
+			double* Eexc=0/*MeV*/);
   void SetLightParticle(std::string Name, int Color, std::string ELossFile);
 
   void SetPrintLevel(int PrintLevel);
@@ -108,6 +109,10 @@ private:
   Particle* DeDau1;
   Particle* DeDau2;
   Particle* Light;
+  Particle** EvaP;
+  Particle** EvaR;
+  int MaxEva;
+  int CurEva;
   double Kb_after_window;
   double EneSigma;
 
@@ -118,6 +123,8 @@ private:
   double** DeltaEH;    // heavy
   double** DeltaED1;   // decay daughter1
   double** DeltaED2;   // decay daughter2
+  double*** DeltaE_EvaP;
+  double*** DeltaE_EvaR;
 
   std::string Name;
 
