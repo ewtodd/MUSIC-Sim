@@ -26,7 +26,9 @@
 #include <TCanvas.h>
 #include <TEveArrow.h>
 #include <TEveGeoNode.h>
+#include <TEveLine.h>
 #include <TEveManager.h>
+#include <TEveStraightLineSet.h>
 #include <TF1.h>
 #include <TFile.h>
 #include <TGeoManager.h>
@@ -35,6 +37,7 @@
 #include <TGeoNode.h>
 #include <TGeoVolume.h>
 #include <TGraph.h>
+#include <TH1.h>
 #include <TH2.h>
 #include <TLegend.h>
 #include <TLine.h>
@@ -73,8 +76,8 @@ public:
   void SetCompoundParticle(std::string Name);
   void SetDecayDaughter1(std::string Name, int Color, std::string ELossFile);
   void SetDecayDaughter2(std::string Name, int Color, std::string ELossFile);
-  void SetEvapResAndPart(string ResName, string ResELossFile, string ParName, string ParELossFile,
-			 int Color);
+  void SetEvapResAndPart(string ResName, string ResELossFile, int ResColor, string ParName, 
+			 string ParELossFile, int ParColor);
   void SetHeavyParticle(std::string Name, int Color, std::string ELossFile, int NEexc=0,
 			double* Eexc=0/*MeV*/);
   void SetLightParticle(std::string Name, int Color, std::string ELossFile);
@@ -147,7 +150,7 @@ private:
   TGraph*** TraceD2;
   TGraph*** TraceL;
   TGraph** TraceB;
-  TH1I* TraceMult;
+  TH1F* TraceMult;
   int NTraces;
 
   TF1* Gaussian;   // For randomizing the detector response
@@ -159,6 +162,11 @@ private:
   TEveStraightLineSet** TrajD1;
   TEveStraightLineSet** TrajD2;
   TEveStraightLineSet** TrajL;
+  TEveStraightLineSet*** TrajEvaP;
+  TEveStraightLineSet*** TrajEvaR;
+  TEveArrow* TrackBeam;
+  TEveArrow** TrackEvaP;
+  TEveArrow** TrackEvaR;
   TEveManager* Eve;
   TCanvas* TraceCan;
   TLegend* LegCol;
