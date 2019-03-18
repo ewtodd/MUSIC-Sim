@@ -81,10 +81,10 @@ MUSIC_Simulator::MUSIC_Simulator()
 
   // Canvas and legends for traces
   TraceCan = new TCanvas("TraceCan","Traces", 0, 0, 960, 1018);
-  TraceCan->Divide(1,3);
+  TraceCan->Divide(1,2);
   TraceCan->cd(1)->SetGrid();
   TraceCan->cd(2)->SetGrid();
-  TraceCan->cd(3)->SetGrid();
+  //  TraceCan->cd(3)->SetGrid();
   //  TraceCan->cd(3)->SetGrid();
   LegCol = new TLegend(0.692,0.616,0.826,0.861);
   LegPart = new TLegend(0.692,0.616,0.826,0.861);
@@ -716,8 +716,8 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
 	  
 	  TraceCan->cd(1);
 	  HCT->Draw();
-	  TraceCan->cd(2);
-	  HPT->Draw();
+	  // TraceCan->cd(2);
+	  // HPT->Draw();
 	  
 	  // Reset the detector response
 	  for (int stp=0; stp<AnodeStps; stp++) 
@@ -1745,6 +1745,43 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
   }
   //  theta_h = (EvaR[er]->GetTheta())*180/pi;
   // phi_h = (EvaR[er]->GetPhi())*180/pi;
+
+  // Update the kinematics label and then draw it
+  LabelKine->Clear();
+  LabelKine->AddText("Kinematics");
+  //  LabelKine->AddLine(0.0,0.76,1.0,0.76);
+  LabelKine->AddText(Form("beam: K=%.2f MeV  z_{r}=%.2f cm  tof=%.1f ns", Kbr, zr, tof));
+  for (int er=0; er<CurEva; er++) {
+    if (EvaP[er] && !EvaP[er]->DoNotPropagate) 
+      LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
+			      EvaP[er]->Name.c_str(), EvaP[er]->GetKE(), EvaP[er]->GetTheta()*180/pi,
+			      EvaP[er]->GetPhi()*180/pi));
+    if (EvaR[er] && !EvaR[er]->DoNotPropagate) 
+      LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
+			      EvaR[er]->Name.c_str(), EvaR[er]->GetKE(), EvaR[er]->GetTheta()*180/pi,
+			      EvaR[er]->GetPhi()*180/pi));
+  }
+
+  if (DeDau1 && DeDau2) {
+    LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
+			    DeDau1->Name.c_str(), DeDau1->GetKE(), DeDau1->GetTheta()*180/pi,
+			    DeDau1->GetPhi()*180/pi));
+    LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
+			    DeDau2->Name.c_str(), DeDau2->GetKE(), DeDau2->GetTheta()*180/pi,
+			    DeDau2->GetPhi()*180/pi));
+  }
+  else if (Heavy)
+    LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
+			    Heavy->Name.c_str(), Heavy->GetKE(), Heavy->GetTheta()*180/pi,
+			    Heavy->GetPhi()*180/pi));
+  if (Light)
+    LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
+			    Light->Name.c_str(), Light->GetKE(), Light->GetTheta()*180/pi,
+			    Light->GetPhi()*180/pi));
+  LabelKine->AddText(Form("#theta_{c.m.}=%.1f deg", theta_CM*180/pi));
+
+
+
 #endif
   return ReactionAllowed;
 }
@@ -1784,15 +1821,19 @@ void MUSIC_Simulator::SetTargetParticle(string Name)
 // Core method of this class, where the simulation takes place. Logic:
 // Loop over events
 // 1. Set beam inital conditions (beam energy, position)
-// 2. Randomly select a reaction point (based on the beam energy range in MUSIC)
-// 3. Propagate beam to reaction point and calculate energy loss in the anode elements 
-// 4. Set initial conditions for heavy and light particles
-// 5. Propagate heavy particle and calculate energy loss in the anode elements 
-// 6. Propagate light particle and calculate energy loss in the anode elements
-// 7. Compute detector response (i.e. DE for beam + light + heavy)
+// 2. Within the selected strip randomly select the position at
+//    which the beam particle interacts with the target and calculate
+//    the kinetic energy at the reaction point
+// 3. Set the kinematics of all particles at the reaction point
+// 4. Propagate the beam particle (backwards in time) from the
+//    reaction point to the entrance of MUSIC
+// 5. Propagate evaporated (light) particle (p,n,4He)
+// 6. Propagate evaporation residue (heavy particle)
+// 7. Compute detector response (i.e. DE for beam + light + heavy + etc)
 // 8. Display trace and particle trajecories
 ///////////////////////////////////////////////////////////////////////////////////
-void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double UserDT, int Wait)
+void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double UserDT, int Update, 
+			       int Wait)
 {
   double ti,xi,yi,zi, tf,xf,yf,zf;
 #if 1
@@ -1803,6 +1844,21 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
   }
   
   this->NEvents = NEvents;
+
+  // For progress monitor
+  TStopwatch StpWatch;
+  long EvtsProcessed = 0;
+  long double Frac[6] = {0.01, 0.25, 0.5, 0.75, 0.9, 1.0};
+  int FIndex = 0;
+  
+  // Tree similar to the one used for experimental data
+  SimTree = new TTree("simt","Simulated MUSIC data");
+  SimTree->Branch("de_l",  de_l,     Form("de_l[%d]/F",AnodeStps));
+  SimTree->Branch("de_r",  de_r,     Form("de_r[%d]/F",AnodeStps));
+  SimTree->Branch("seg",   seg,      Form("seg[%d]/I",AnodeStps));
+  SimTree->Branch("stp0",  &strip0,  "stp0/F");
+  SimTree->Branch("stp17", &strip17, "stp17/F");
+  SimTree->Branch("cath",  &cathode, "cath/F");
 
   // Create new traces and trajectories (objectrs) for visualizing the
   // detector response
@@ -1878,8 +1934,8 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
     
     TraceCan->cd(1);
     HCT->Draw();
-    TraceCan->cd(2);
-    HPT->Draw();
+    // TraceCan->cd(2);
+    // HPT->Draw();
     
     // Reset the detector response
     for (int stp=0; stp<AnodeStps; stp++) 
@@ -1973,12 +2029,25 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
     // 7. Compute detector response (i.e. DE for beam + light + heavy)
     // Clone the particle trajectories
     ComputeDetectorResponse(evt);
+    SimTree->Fill();
+      
+    // 8. Display trace and particle trajecories
+    if (Update)
+      UpdateVisuals(evt, Kbr, zr, TOF, Wait);
     
-    // 8. Display trace and particle trajecories   
-    UpdateVisuals(evt, Kbr, zr, TOF, Wait);
+    // Simple progress monitor
+    if (NEvents>99) {
+      if ((long double)(evt)>=Frac[FIndex]*NEvents) {
+	cout << "\t" << Frac[FIndex]*100 << "% processed (" 
+	     << StpWatch.RealTime() << " s)" << endl;
+	StpWatch.Start(kFALSE);
+	FIndex++;
+      }
+    }
     
     NTraces++;
   }
+  StpWatch.Print();
 #endif
   return;
 }
@@ -2078,8 +2147,8 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
     
       TraceCan->cd(1);
       HCT->Draw();
-      TraceCan->cd(2);
-      HPT->Draw();
+      // TraceCan->cd(2);
+      // HPT->Draw();
       
       // Reset the detector response
       for (int stp=0; stp<AnodeStps; stp++) 
@@ -2186,23 +2255,27 @@ void MUSIC_Simulator::UpdateVisuals(int evt, double Kbr, double zr, double TOF, 
     for (int er=0; er<CurEva; er++) {
       if (EvaP[er] && EvaP[er]->SaveTrajectory && !EvaP[er]->DoNotPropagate && TrajEvaP[evt][er]) {
 	EvaP[er]->GetTrajectoryAtt(C,S,W);
-	TrajEvaP[evt][er]->SetLineColor(C);
-	TrajEvaP[evt][er]->SetLineStyle(S);
-	TrajEvaP[evt][er]->SetLineWidth(W);
 	tracklength = TrackEvaP[er]->GetVector().Mag();
-	TrackEvaP[er]->SetTubeR(0.1/tracklength);
-	//      Eve->AddElement(TrackEvaP[er]);
-	TrackEvaP[er]->ElementChanged();
+	if (tracklength>0) {
+	  TrajEvaP[evt][er]->SetLineColor(C);
+	  TrajEvaP[evt][er]->SetLineStyle(S);
+	  TrajEvaP[evt][er]->SetLineWidth(W);
+	  TrackEvaP[er]->SetTubeR(0.1/tracklength);
+	  //      Eve->AddElement(TrackEvaP[er]);
+	  TrackEvaP[er]->ElementChanged();
+	}
       }
       if (EvaR[er] && EvaR[er]->SaveTrajectory && !EvaR[er]->DoNotPropagate) {
-	EvaR[er]->GetTrajectoryAtt(C,S,W);
-	TrajEvaR[evt][er]->SetLineColor(C);
-	TrajEvaR[evt][er]->SetLineStyle(S);
-	TrajEvaR[evt][er]->SetLineWidth(W);
 	tracklength = TrackEvaR[er]->GetVector().Mag();
-	TrackEvaR[er]->SetTubeR(0.1/tracklength);
-	//Eve->AddElement(TrackEvaR[er]);
-	TrackEvaR[er]->ElementChanged();
+	if (tracklength>0) {
+	  EvaR[er]->GetTrajectoryAtt(C,S,W);
+	  TrajEvaR[evt][er]->SetLineColor(C);
+	  TrajEvaR[evt][er]->SetLineStyle(S);
+	  TrajEvaR[evt][er]->SetLineWidth(W);
+	  TrackEvaR[er]->SetTubeR(0.1/tracklength);
+	  //Eve->AddElement(TrackEvaR[er]);
+	  TrackEvaR[er]->ElementChanged();
+	}
       }
     }
     Eve->Redraw3D();
@@ -2226,48 +2299,27 @@ void MUSIC_Simulator::UpdateVisuals(int evt, double Kbr, double zr, double TOF, 
       LegPart->AddEntry(TraceL[evt][AnodeCols], Form("%s",Light->Name.c_str()), "l");
   }
   LegPart->Draw();
-  // Update the kinematics label and then draw it
-  LabelKine->Clear();
-  LabelKine->AddText("Kinematics");
-  LabelKine->AddLine(0.0,0.76,1.0,0.76);
-  LabelKine->AddText(Form("beam: K=%.2f MeV  z_{r}=%.2f cm  tof=%.1f ns", Kbr, zr, TOF));
-  if (DeDau1 && DeDau2) {
-    LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
-			    DeDau1->Name.c_str(), DeDau1->GetKE(), DeDau1->GetTheta()*180/pi,
-			    DeDau1->GetPhi()*180/pi));
-    LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
-			    DeDau2->Name.c_str(), DeDau2->GetKE(), DeDau2->GetTheta()*180/pi,
-			    DeDau2->GetPhi()*180/pi));
-  }
-  else if (Heavy)
-    LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
-			    Heavy->Name.c_str(), Heavy->GetKE(), Heavy->GetTheta()*180/pi,
-			    Heavy->GetPhi()*180/pi));
-  if (Light)
-    LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
-			    Light->Name.c_str(), Light->GetKE(), Light->GetTheta()*180/pi,
-			    Light->GetPhi()*180/pi));
-  LabelKine->AddText(Form("#theta_{c.m.}=%.1f deg", theta_CM));
+
 
   LabelKine->Draw();
 
   // Draw traces
   if (PrintLevel>0)
     cout << "Drawing traces ..." << endl;
-  if (DeDau1 && DeDau2) {
-    TraceD1[evt][AnodeCols]->Draw("l same");
-    TraceD2[evt][AnodeCols]->Draw("l same");
-  }
-  else if (Heavy)
-    TraceH[evt][AnodeCols]->Draw("l same");
-  if (Light)
-    TraceL[evt][AnodeCols]->Draw("l same");
-  TraceB[AnodeCols]->Draw("l same");
-  Trace[evt][AnodeCols]->Draw("*l same");
+  // if (DeDau1 && DeDau2) {
+  //   TraceD1[evt][AnodeCols]->Draw("l same");
+  //   TraceD2[evt][AnodeCols]->Draw("l same");
+  // }
+  // else if (Heavy)
+  //   TraceH[evt][AnodeCols]->Draw("l same");
+  // if (Light)
+  //   TraceL[evt][AnodeCols]->Draw("l same");
+  // TraceB[AnodeCols]->Draw("l same");
+  // Trace[evt][AnodeCols]->Draw("*l same");
 
   // Traces of energy loss in columns as a function of the strip
   // number.
-  TraceCan->cd(2);
+  // TraceCan->cd(2);
 #if 1
   TraceB[AnodeCols]->Draw("l same");
   for (int col=0; col<AnodeCols; col++)
@@ -2286,7 +2338,7 @@ void MUSIC_Simulator::UpdateVisuals(int evt, double Kbr, double zr, double TOF, 
 #endif
 
   // Draw multiplicity 
-  TraceCan->cd(3);
+  TraceCan->cd(2);
   TraceMult->GetYaxis()->SetRangeUser(0,AnodeCols+1);
   TraceMult->Draw();
 
@@ -2320,6 +2372,8 @@ void MUSIC_Simulator::WriteTraces(char* FileName)
 {
 #if 1
   TFile* Output = new TFile(FileName, "RECREATE");
+  if (SimTree)
+    SimTree->Write("", TObject::kSingleKey);
   if (Trace!=0)
     for (int n=0; n<NTraces; n++)
       if (Trace[n]!=0) {
