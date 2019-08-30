@@ -23,14 +23,14 @@ git clone https://gitlab.phy.anl.gov/dasago/music-simulator.git
 git clone https://gitlab.phy.anl.gov/andes/physics-tools.git
 
 2. Compile it (ignore all warnings but if there are errors send them to dasago@anl.gov)
-cd physicstools
+cd physics-tools
 g++ -shared -fPIC EnergyLoss.cpp `root-config --cflags --glibs` -o EnergyLoss.so
 g++ -shared -fPIC FourVector.cpp -o FourVector.so  
 g++ -shared -fPIC Particle.cpp `root-config --cflags --glibs` -o Particle.so
 root -l NuclideFinder.cpp++
 .L SRIM_Table_Maker.cpp++
 .q
-cd ../music_simulator
+cd ../music-simulator
 git checkout fusion_evap
 root -l MakeAll.C
 .q
