@@ -29,7 +29,6 @@ root -l NuclideFinder.cpp++
 .L SRIM_Table_Maker.cpp++
 .q
 cd ../music-simulator
-git checkout fusion_evap
 root -l MakeAll.C
 .q
 
@@ -60,7 +59,6 @@ root -l
 .q
 
 cd ../music-simulator
-git checkout fusion_evap (optional)
 Edit the names of all the .so library files in the MakeAll.C file. (Ex: EnergyLoss.so -> EnergyLoss_cpp.so)
 
 Open MUSIC_Simulator.cpp 
