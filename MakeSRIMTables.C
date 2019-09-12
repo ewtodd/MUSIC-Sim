@@ -9,8 +9,8 @@
 #include <iostream>
 #include <unistd.h>  // needed for getcwd()
 #include <TString.h>
-#include "/home/dasago/Dropbox/Codes/PhysicsTools/SRIM_Table_Maker.hpp"
-#include "/home/dasago/Dropbox/Codes/PhysicsTools/NuclideFinder.hpp"
+#include "../physics-tools/SRIM_Table_Maker.hpp"
+#include "../physics-tools/NuclideFinder.hpp"
 
 
 void MakeSRIMTables()
@@ -27,7 +27,7 @@ void MakeSRIMTables()
   string SRModPath = "/home/dasago/.wine/drive_c/Program\ Files\ \(x86\)/SRIM/SR\ Module/";
   //
   // Particles for which the Stopping Power tables will be generated
-  const int NumParticles = 8;
+  const int NumParticles = 13;
   string particle[NumParticles];
   particle[0] = "16C";
   particle[1] = "1H"; 
@@ -37,6 +37,11 @@ void MakeSRIMTables()
   particle[5] = "24Mg";
   particle[6] = "23Na";
   particle[7] = "22Ne";
+  particle[8] = "4He";
+  particle[9] = "24Ne";
+  particle[10] = "23Ne";
+  particle[11] = "21Ne";
+  particle[12] = "21F";
   //
   // Target gas related stuff
   float GasP = 400; // Torr

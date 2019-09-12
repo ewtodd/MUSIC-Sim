@@ -7,8 +7,7 @@
 // Date: Dec 2018
 /////////////////////////////////////////////////////////////////////////////
 #include <unistd.h>  // needed for getcwd()
-//#include "/home/dasago/Dropbox/Codes/PhysicsTools/NuclideFinder.hpp"
-//#include "/home/dasago/Dropbox/Codes/MUSIC/Simulator/MUSIC_Simulator.hpp"
+
 
 void RunMUSICSim_16C()
 {
