@@ -1,21 +1,25 @@
 /////////////////////////////////////////////////////////////////////////////
 // Description: ROOT macro that creates SRIM tables for the MUSIC Simulator.
 //
-// Usage: root -l MakeSRIMTables.C+
+// Usage: root -l MakeSRIMTables.C
 //
 // Created by: Daniel Santiago-Gonzalez
 // Date: Dec 2018
 /////////////////////////////////////////////////////////////////////////////
-#include <TString.h>
-#include "/home/dasago/Dropbox/Codes/PhysicsTools/SRIM_Table_Maker.hpp"
-#include "/home/dasago/Dropbox/Codes/PhysicsTools/NuclideFinder.hpp"
+#include <unistd.h>  // needed for getcwd()
 
 void MakeSRIMTables()
 {
+  // These 3 lines get the current working directory (to load the SRIM files)
+  char cwd[1024];
+  getcwd(cwd, sizeof(cwd));
+  string SRIMdir = cwd;
+  SRIMdir += "/SRIM_files/";
+
   //=======================================================================
   // CONTROL PANEL
   //
-  string OutputDir = "/home/dasago/Dropbox/Codes/MUSIC/Simulator/Examples/O14_alpha_p/SRIM_files/";
+  string OutputDir = SRIMdir;
   string SRModPath = "/home/dasago/.wine/drive_c/Program\ Files\ \(x86\)/SRIM/SR\ Module/";
   //
   // Particles for which the Stopping Power tables will be generated
