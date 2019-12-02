@@ -1,10 +1,10 @@
  ==================================================================
               Calculation using SRIM-2006 
               SRIM version ---> SRIM-2008.04
-              Calc. date   ---> March 14, 2019 
+              Calc. date   ---> November 20, 2019 
  ==================================================================
 
- Disk File Name = /home/dasago/Dropbox/Codes/MUSIC/Simulator/SRIM_files/1H_in_GasIndex17_400Torr_293K.srim
+ Disk File Name = /home/dasago/Dropbox/Experiments/MUSIC_14Oap/music-simulator/Examples/Fusion16C/SRIM_files/1H_in_GasIndex17_400Torr_293K.srim
 
  Ion = Hydrogen     [1] , Mass = 1.00783 amu
 

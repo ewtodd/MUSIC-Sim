@@ -280,7 +280,7 @@ void MUSIC_Simulator::CalculateExcEnergyRange()
 ///////////////////////////////////////////////////////////////////////////////////
 // Private method, to be used in an event loop.
 ///////////////////////////////////////////////////////////////////////////////////
-void MUSIC_Simulator::ComputeDetectorResponse(int evt)
+void MUSIC_Simulator::ComputeDetectorResponse(int evt, int reacStp)
 {
 #if 1
   if (PrintLevel>0)
@@ -325,12 +325,13 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt)
     cathode = 0;
     strip0 = 0;
     strip17 = 0;
+    this->reacStp = reacStp;
     for (int stp=0; stp<ExpAnodeStps; stp++) {
       de_l[stp] = 0;
       de_r[stp] = 0;
     }
   }
-
+  
   // Loop over the anode's strips and columns
   for (int stp=0; stp<AnodeStps; stp++) {
     DeltaE = 0;
@@ -623,6 +624,7 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
   SimTree->Branch("cath",  &cathode, "cath/F");
   // The following branches are for physical quantities that at the
   // moment can only be obtained from the simulation
+  SimTree->Branch("reacStp",   &reacStp,   "reacStp/I");
   SimTree->Branch("Kb", &Kb, "Kb/F");
   SimTree->Branch("Kl", &Kl, "Kl/F");
   SimTree->Branch("Kh", &Kh, "Kh/F");
@@ -844,7 +846,7 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
 	  
 	  // 7. Compute detector response (i.e. DE for beam + light + heavy)
 	  // Clone the particle trajectories
-	  ComputeDetectorResponse(evt);
+	  ComputeDetectorResponse(evt, stp_base);
 	  SimTree->Fill();
 	  
 	  // 8. Display trace and particle trajecories   
@@ -895,9 +897,9 @@ void MUSIC_Simulator::PrintEnergetics(double Kb, double** DeltaEB)
   cout.width(5);
   cout << "Stp";
   cout.width(15);
-  cout << "Ebmax[MeV]";
+  cout << "ExMax[MeV]";
   cout.width(15);
-  cout << "EbMin[MeV]";
+  cout << "ExMin[MeV]";
   cout.width(15);
   cout << "Exmax[MeV]";
   cout.width(15);
@@ -919,7 +921,7 @@ void MUSIC_Simulator::PrintEnergetics(double Kb, double** DeltaEB)
     Ptot.SetCoords(Eb+mt, 0, 0, pb);
     cout.width(15);
     cout.precision(4);
-    cout << sqrt(Ptot*Ptot) - mc;
+    cout << sqrt(Ptot*Ptot) - mc; // excitation energy in compound nucleus
     // Initial momentum in the CM reference frame (Ptot*Ptot is an invariant quantity).
     double pCM_max = sqrt((Ptot*Ptot-pow(mt+mb,2))*(Ptot*Ptot-pow(mb-mt,2))/(4*(Ptot*Ptot)));    
     // Lower limit
@@ -1943,6 +1945,19 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
   SimTree->Branch("stp0",  &strip0,  "stp0/F");
   SimTree->Branch("stp17", &strip17, "stp17/F");
   SimTree->Branch("cath",  &cathode, "cath/F");
+  // The following branches are for physical quantities that at the
+  // moment can only be obtained from the simulation
+  SimTree->Branch("reacStp",   &reacStp,   "reacStp/I");
+  SimTree->Branch("Kb", &Kb, "Kb/F");
+  SimTree->Branch("Kl", &Kl, "Kl/F");
+  SimTree->Branch("Kh", &Kh, "Kh/F");
+  SimTree->Branch("theta_CM", &theta_CM, "theta_CM/F");
+  SimTree->Branch("theta_l", &theta_l, "theta_l/F");
+  SimTree->Branch("theta_h", &theta_h, "theta_h/F");
+  SimTree->Branch("phi_l",   &phi_l,   "phi_l/F");
+  SimTree->Branch("phi_h",   &phi_l,   "phi_h/F");
+  if (PrintLevel>0)
+    SimTree->Print();
 
   // Create new traces and trajectories (objectrs) for visualizing the
   // detector response
@@ -2112,7 +2127,7 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
 
     // 7. Compute detector response (i.e. DE for beam + light + heavy)
     // Clone the particle trajectories
-    ComputeDetectorResponse(evt);
+    ComputeDetectorResponse(evt, StpID);
     SimTree->Fill();
       
     // 8. Display trace and particle trajecories
@@ -2149,6 +2164,29 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
     return;
   }
   
+  // Tree similar to the one used for experimental data
+  SimTree = new TTree("simt","Simulated MUSIC data");
+  SimTree->Branch("de_l",  de_l,     Form("de_l[%d]/F",AnodeStps));
+  SimTree->Branch("de_r",  de_r,     Form("de_r[%d]/F",AnodeStps));
+  SimTree->Branch("seg",   seg,      Form("seg[%d]/I",AnodeStps));
+  SimTree->Branch("stp0",  &strip0,  "stp0/F");
+  SimTree->Branch("stp17", &strip17, "stp17/F");
+  SimTree->Branch("cath",  &cathode, "cath/F");
+  // The following branches are for physical quantities that at the
+  // moment can only be obtained from the simulation
+  SimTree->Branch("reacStp",   &reacStp,   "reacStp/I");
+  SimTree->Branch("Kb", &Kb, "Kb/F");
+  SimTree->Branch("Kl", &Kl, "Kl/F");
+  SimTree->Branch("Kh", &Kh, "Kh/F");
+  SimTree->Branch("theta_CM", &theta_CM, "theta_CM/F");
+  SimTree->Branch("theta_l", &theta_l, "theta_l/F");
+  SimTree->Branch("theta_h", &theta_h, "theta_h/F");
+  SimTree->Branch("phi_l",   &phi_l,   "phi_l/F");
+  SimTree->Branch("phi_h",   &phi_l,   "phi_h/F");
+  if (PrintLevel>0)
+    SimTree->Print();
+  
+
   // Angles in radians
   double theta = 0;
   double phi = 0;
@@ -2276,7 +2314,7 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
       
       // 7. Compute detector response (i.e. DE for beam + light + heavy)
       // Clone the particle trajectories
-      ComputeDetectorResponse(evt);
+      ComputeDetectorResponse(evt, StpID);
       
       // 8. Display trace and particle trajecories   
       UpdateVisuals(evt, Kbr, zr, TOF, Wait);

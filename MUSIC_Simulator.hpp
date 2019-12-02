@@ -91,7 +91,7 @@ public:
   void WriteTraces(char* FileName);
 
 private:
-  void ComputeDetectorResponse(int event);
+  void ComputeDetectorResponse(int event, int reacStp);
   void CreateTracesAndTrajectories(int NEvents);
   void DrawMUSIC(TEveManager* gEve, short Transparency /*From 0 to 100*/);
   void PrintCompoundEexc(double Kb, double** DeltaEB);
@@ -205,6 +205,7 @@ private:
   int* seg;
   float strip17;
   float cathode;
+  int reacStp;
   float Kb;
   float Kl;
   float Kh;
