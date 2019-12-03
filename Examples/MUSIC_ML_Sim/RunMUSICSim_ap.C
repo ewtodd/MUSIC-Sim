@@ -8,7 +8,7 @@
 /////////////////////////////////////////////////////////////////////////////
 #include <unistd.h>  // needed for getcwd()
 
-void RunMUSICSim_ap()
+//void RunMUSICSim_ap()
 {
   // These 3 lines get the current working directory (to load the SRIM files)
   char cwd[1024];
@@ -49,13 +49,13 @@ void RunMUSICSim_ap()
   }
 
   double Kb = 42.59;   // MeV - Energy of the beam after the Ti window and Al degrader
-  int Strip = 3;     // Strip where reaction takes place
+  int strip = 3;     // Strip where reaction takes place
   float Eres = 0.01;  // MeV - Strip energy resolution (larger values increase signal randomness)
-  int NEvents = 50000;   // Number of simulated events (recommendation: keep it <1000)
+  int NEvents = 1000;   // Number of simulated events (recommendation: keep it <1000)
   int Wait = 0;       // 1 - canvas waits for user's double click, 0 - no wait
   int Update = 0;     // 1 - update visuals for every event, 0 - don't
   double MaxTime = 1000;   // ns - max time for an event
-  double UserDT = 0.1;     // ns - simulation time steps
+  double SimStep = 0.01;     // cm - simulation steps size
   int Method = 0;    // Select the simulation method: 0 - Simulate, 1 - GenerateTraceDatabase
 
   // The following control variables only apply for GenerateTraceDatabase (Method=1)
@@ -73,6 +73,7 @@ void RunMUSICSim_ap()
   /////////////////////////////////////////////////////////////////////////////
 
   MUSIC_Simulator* MUSIC = new MUSIC_Simulator();
+  MUSIC->SetROOTSystemPointer(gSystem);
   MUSIC->SetPrintLevel(0);
   MUSIC->SetStripEnergyResolution(Eres);
   // Geometry
@@ -89,13 +90,13 @@ void RunMUSICSim_ap()
 
   if (Method==0) {
     // Simulate events for one strip or generate trace data base (see below)
-    MUSIC->Simulate(Strip, NEvents, MaxTime, UserDT, Update, Wait, Form("Traces_Stp%d_ap_50k.root", Strip));
-    //  MUSIC->WriteTraces(Form("Traces_Stp%d_ap_100k.root", Strip));
+    MUSIC->Simulate(strip, NEvents, MaxTime, SimStep, Update, Wait, Form("Traces_Stp%d_ap_1k.root", strip));
+    MUSIC->WriteTraces(Form("Traces_Stp%d_ap_1k.root", strip));
   }
   else if (Method==1) {
     MUSIC->GenerateTraceDatabase("TraceDB_ap.root", 
 				 ThCMMin, ThCMMax, ThSteps, 
 				 PhiCMMin, PhiCMMax, PhiSteps,
-				 MaxTime, UserDT, Update, Wait);
+				 MaxTime, SimStep, Update, Wait);
   }
 }

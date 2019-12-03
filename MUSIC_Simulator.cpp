@@ -110,6 +110,7 @@ MUSIC_Simulator::MUSIC_Simulator()
     TrackEvaR[er] = new TEveArrow();
   }
 
+  gSystem = 0;
 }
 
 
@@ -253,27 +254,35 @@ void MUSIC_Simulator::CalculateExcEnergyRange()
 }
 
 ///////////////////////////////////////////////////////////////////////////////////
-// Simple function that returns 0 if the used RAM is more than the MaxMemory
+// Simple function that returns 0 if the used RAM is more than the memory limit
 // (or if the 'System' pointer hasn't been set) and 1 if the used RAM is 
-// still less than MaxMemory.
+// still less than the memory limit.
 ///////////////////////////////////////////////////////////////////////////////////
-// int MUSIC_Simulator::CheckMemoryUsage()
-// {
-//   int status = 0;
-//   MemInfo_t* Memory;
-//   if (System!=0) {
-//     Memory = new MemInfo_t();
-//     System->GetMemInfo(Memory);
-//     cout << "> Total memory used: "  << Memory->fMemUsed << " MB = "
-// 	 << 100.0*Memory->fMemUsed/Memory->fMemTotal << " % of total memory." << endl;
-//     if (Memory->fMemUsed < MaxMemory)
-//       status = 1;
-//     delete Memory;
-//   }
-//   else
-//     cout << "> Warning: System pointer not set." << endl;
-//   return status;
-// }
+int MUSIC_Simulator::CheckMemoryUsage(int Print)
+{
+  int status = 1;
+  MemInfo_t* Memory;
+  if (gSystem!=0) {
+    Memory = new MemInfo_t();
+    gSystem->GetMemInfo(Memory);
+    float MemoryLimit = 0.8*Memory->fMemTotal;
+    if (Print) {
+      cout << "> Total memory used: "  << Memory->fMemUsed << " MB = "
+	   << 100.0*Memory->fMemUsed/Memory->fMemTotal 
+	   << " % of max memory (" << Memory->fMemTotal << " MB)" << endl;
+    }
+    if ((float)Memory->fMemUsed > MemoryLimit) {
+      cout << "Memory limit exceded! Limit at " << MemoryLimit << " MB" << endl;
+      status = 0;
+    }
+    delete Memory;
+  }
+  else
+    cout << "> Warning: CheckMemoryUsage(), gSystem pointer not set. "
+	 << "Use SetROOTSystemPointer() method."
+	 << endl;
+  return status;
+}
 
 
 
@@ -594,7 +603,7 @@ void MUSIC_Simulator::DrawMUSIC(TEveManager* gEve, short Transparency /*From 0 t
 void MUSIC_Simulator::GenerateTraceDatabase(string FileName, 
 					    double ThCMMin, double ThCMMax, int ThSteps,
 					    double PhiCMMin, double PhiCMMax, int PhiSteps,
-					    double MaxTime, double UserDT, int UpdateVis,
+					    double MaxTime, double UserStep, int UpdateVis,
 					    int Wait)
 {
   double ti,xi,yi,zi, tf,xf,yf,zf;
@@ -659,7 +668,8 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
   BeamCopy->Copy(Beam);
   if (PrintLevel>0)
     BeamCopy->Print();
-  DeltaEB_ave = PropagateParticle(BeamCopy, Kb_after_window, MaxTime, UserDT); 
+  //  DeltaEB_ave = PropagateParticle(BeamCopy, Kb_after_window, MaxTime, UserStep); 
+  PropagateParticle(BeamCopy, Kb_after_window, MaxTime, UserStep, DeltaEB_ave);
   for (int stp=0; stp<AnodeStps; stp++)
     for (int col=0; col<AnodeCols+1; col++) 
       TraceB[col]->SetPoint(stp, stp, DeltaEB_ave[stp][col]);
@@ -783,55 +793,50 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
 	  
 	  // 4. Propagate the beam particle (backwards in time) from
 	  // the reaction point to the entrance of MUSIC
-	  DeltaEB = PropagateParticle(Beam, evt, MaxTime, -UserDT);
+	  //	  DeltaEB = PropagateParticle(Beam, evt, MaxTime, -UserStep);
+	  PropagateParticle(Beam, evt, MaxTime, -UserStep, DeltaEB);
 	  
 	  // 5. Propagate heavy particle (or decay daughters) and calculate energy 
 	  // loss in the anode elements
 	  if (DeDau1 && DeDau2) {
-	    DeltaED1 = PropagateParticle(DeDau1, evt, MaxTime, UserDT);
-	    DeltaED2 = PropagateParticle(DeDau2, evt, MaxTime, UserDT);
+	    //	    DeltaED1 = PropagateParticle(DeDau1, evt, MaxTime, UserStep);
+	    // DeltaED2 = PropagateParticle(DeDau2, evt, MaxTime, UserStep);
+	    PropagateParticle(DeDau1, evt, MaxTime, UserStep, DeltaED1);
+	    PropagateParticle(DeDau2, evt, MaxTime, UserStep, DeltaED2);
 	  }
-	  else
-	    DeltaEH = PropagateParticle(Heavy, evt, MaxTime, UserDT);
-	  
+	  else {
+	    //	    DeltaEH = PropagateParticle(Heavy, evt, MaxTime, UserStep);
+	    PropagateParticle(Heavy, evt, MaxTime, UserStep, DeltaEH);
+	  }
 	  // 6. Propagate light particle and calculate energy loss in the
 	  // anode elements
-	  DeltaEL = PropagateParticle(Light, evt, MaxTime, UserDT);
+	  //	  DeltaEL = PropagateParticle(Light, evt, MaxTime, UserStep);
+	  PropagateParticle(Light, evt, MaxTime, UserStep, DeltaEL);
 #endif	  
 
 	  if (ReacAllowed) {
 	  // 4. Propagate the beam particle (backwards in time) from the
 	  // reaction point to the entrance of MUSIC
 	  Beam->GetX(tf,xf,yf,zf);
-	  DeltaEB = PropagateParticle(Beam, evt, MaxTime, -UserDT);
+	  //	  DeltaEB = PropagateParticle(Beam, evt, MaxTime, -UserStep);
+	  PropagateParticle(Beam, evt, MaxTime, -UserStep, DeltaEB);
 	  Beam->GetX(ti,xi,yi,zi);                      // <- This is not a mistake
 	  TrackBeam->SetOrigin(xi,yi,zi);
 	  TrackBeam->SetVector(xf-xi,yf-yi,zf-zi);
 	  
-	  // 5. Propagate heavy particle (or decay daughters) and calculate energy 
-	  // loss in the anode elements
-	  // if (DeDau1 && DeDau2) {
-	  // 	DeltaED1 = PropagateParticle(DeDau1, evt, MaxTime, UserDT);
-	  // 	DeltaED2 = PropagateParticle(DeDau2, evt, MaxTime, UserDT);
-	  // }
-	  // else
-	  // 	DeltaEH = PropagateParticle(Heavy, evt, MaxTime, UserDT);
-      
-	  // 6. Propagate light particle and calculate energy loss in the
-	  // anode elements
-	  //   DeltaEL = PropagateParticle(Light, evt, MaxTime, UserDT);
-
 	  // 5-6. Propagate outgoing particles (evaporation residues)
 	  for (int er=0; er<CurEva; er++) {
 	  // evaporated (light) particle (p,n,4He)
 	  EvaP[er]->GetX(ti,xi,yi,zi);
-	  DeltaE_EvaP[er] = PropagateParticle(EvaP[er], evt, MaxTime, UserDT);
+	  //	  DeltaE_EvaP[er] = PropagateParticle(EvaP[er], evt, MaxTime, UserStep);
+	  PropagateParticle(EvaP[er], evt, MaxTime, UserStep, DeltaE_EvaP[er]);
 	  EvaP[er]->GetX(tf,xf,yf,zf);
 	  TrackEvaP[er]->SetOrigin(xi,yi,zi);
 	  TrackEvaP[er]->SetVector(xf-xi,yf-yi,zf-zi);
 	  // evaporation residue (heavy particle)
 	  EvaR[er]->GetX(ti,xi,yi,zi);
-	  DeltaE_EvaR[er] = PropagateParticle(EvaR[er], evt, MaxTime, UserDT);
+	  //	  DeltaE_EvaR[er] = PropagateParticle(EvaR[er], evt, MaxTime, UserStep);
+	  PropagateParticle(EvaR[er], evt, MaxTime, UserStep, DeltaE_EvaR[er]);
 	  EvaR[er]->GetX(tf,xf,yf,zf);
 	  TrackEvaR[er]->SetOrigin(xi,yi,zi);
 	  TrackEvaR[er]->SetVector(xf-xi,yf-yi,zf-zi);
@@ -839,7 +844,8 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
 	}
 	  else {
 	  Beam->Copy(BeamInit);
-	  PropagateParticle(Beam, Kb_after_window, MaxTime, UserDT); 
+	  //	  PropagateParticle(Beam, Kb_after_window, MaxTime, UserStep); 
+	  PropagateParticle(Beam, Kb_after_window, MaxTime, UserStep, DeltaEB);
 	  cout << "Warninig: reaction energetically not allowed for event " << evt 
 	       << " (Kbr= " << Kbr << " MeV)." << endl;
 	}
@@ -984,19 +990,27 @@ void MUSIC_Simulator::PrintEnergetics(double Kb, double** DeltaEB)
 // is retured when this method ends. The last column element (AnodeCols) is
 // reserved for the total energy loss in all other columns for that strip.
 ///////////////////////////////////////////////////////////////////////////////////
-double** MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxTime, double UserDT)
+int MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxTime, double UserStep, double** DE)
 {
-  double** DE = new double*[AnodeStps];
-  for (int stp = 0; stp<AnodeStps; stp++) {
-    DE[stp] = new double[AnodeCols+1];
+  // const int strips = AnodeStps;
+  // const int columns = AnodeCols+1;
+  // double DE[strips][columns];
+  for (int stp = 0; stp<AnodeStps; stp++) 
     for (int col = 0; col<AnodeCols+1; col++) 
       DE[stp][col] = 0;
-  }
+
+
+  // double** DE = new double*[AnodeStps];
+  // for (int stp = 0; stp<AnodeStps; stp++) {
+  //   DE[stp] = new double[AnodeCols+1];
+  //   for (int col = 0; col<AnodeCols+1; col++) 
+  //     DE[stp][col] = 0;
+  // }
 
   if (PO->DoNotPropagate) {
     if (PrintLevel>0)
       cout << "Propagator! " << PO->Name << " not propagating" << endl;
-    return DE;
+    return 0;
   }
 
 #if 1
@@ -1042,17 +1056,16 @@ double** MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxT
     px = p_mag*cos(phi)*sin(theta);
     py = p_mag*sin(phi)*sin(theta);
     pz = p_mag*cos(theta);
-    double vx = c*px/Ene;  // maybe change to px/Ene
-    double vy = c*py/Ene;  // maybe change to py/Ene
-    double vz = c*pz/Ene;  // maybe change to pz/Ene
+    double vx = c*px/Ene;
+    double vy = c*py/Ene;
+    double vz = c*pz/Ene;
     double vel = sqrt(vx*vx+vy*vy+vz*vz);
     
-    // Very short time step for dense media, equivalent to distance
-    // steps of 0.1 um. Let's just hope that the numerator is never
-    // zero.
-    double Dt = 1E-3/vel;   // from p/c = m*dx/dt -> dt = c*m*dx/p
-    if (UserDT<0)
-      Dt = -Dt;
+    // Use short steps for dense media
+    double Dt = 0;
+    if (vel>0) 
+      Dt = UserStep/vel;   // from p/c = m*dx/dt -> dt = c*m*dx/p
+    
     tf = ti + Dt;
     xf = xi + vx*Dt;
     yf = yi + vy*Dt;
@@ -1095,7 +1108,7 @@ double** MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxT
     // medium (0) over a small (differential) path length (dist).
     double dist = sqrt(pow(xf-xi,2) + pow(yf-yi,2) + pow(zf-zi,2));
     double Kf = 0;
-    if (UserDT>0) 
+    if (UserStep>0) 
       Kf = PO->GetFinalEnergy(0, Ki, dist, dist/10);
     else
       Kf = PO->GetInitialEnergy(0, Ki, dist, dist/10);
@@ -1105,7 +1118,7 @@ double** MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxT
       if (PrintLevel>0) {
 	cout << "STOPS INSIDE ACTIVE VOLUME!" << endl;
 	if (Kf<0)	
-	  cout << "Less than ZERO! " << Kf << endl;
+	  cout << "Less than ZERO K.E.! " << Kf << endl;
       }    
       break;
     }
@@ -1123,7 +1136,7 @@ double** MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxT
     p_mag = sqrt(2*m*Kf*(1+Kf/2/m));
     // Reduce (or increase) the total energy by amount of energy
     // deposited in the medium.
-    if (UserDT>0)
+    if (UserStep>0)
       Ene -= fabs(Ki - Kf);
     else
       Ene += fabs(Ki - Kf);
@@ -1138,7 +1151,7 @@ double** MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxT
     step++;
     // Add a new point to the trace and trajectory if enough time has
     // passed.
-    if (tf-tt>UserDT) {   
+    if (tf-tt>UserStep) {   
       if (PO->SaveTrajectory) {
 	if (!Skip) {
 	  //	  PO->AllTraj[Event]->AddLine(xt,yt,zt, xf,yf,zf);
@@ -1159,7 +1172,7 @@ double** MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxT
   PO->SetX(tf,xf,yf,zf);
   PO->SetP(Ene, p_mag*cos(phi)*sin(theta), p_mag*sin(phi)*sin(theta), p_mag*cos(theta));
 #endif
-  return DE;
+  return 1;
 }
 
 
@@ -1797,35 +1810,6 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
     }
   }
     
-    //   // If the excitation energy allows the decay channel d1+d2 (provided that the user defined it)
-    //   // then make the decay happen.
-    //   double md1=0;      double md2=0;
-    //   if (DeDau1 && DeDau2) {
-    // 	md1 = DeDau1->Mass;
-    // 	md2 = DeDau2->Mass;
-    // 	if ((md1+md2)<(mh+Ex)) {
-    // 	  // Final momentum of the daughter particles in the reference frame of the heavy particle.
-    // 	  FourVector Ph = EvaR[er]->GetP();
-    // 	  double pfd = sqrt((Ph*Ph - pow(md1+md2,2))*(Ph*Ph - pow(md1-md2,2))/(4*(Ph*Ph)));
-    // 	  double theta_d1 = acos(Rdm->Uniform(-1,1));
-    // 	  double phi_d1 = Rdm->Uniform(-pi,pi);
-    // 	  DeDau1->SetP(sqrt(md1*md1 + pfd*pfd), pfd*sin(theta_d1)*cos(phi_d1),
-    // 		       pfd*sin(theta_d1)*sin(phi_d1), -pfd*cos(theta_d1));
-    // 	  DeDau2->SetP(sqrt(md2*md2 + pfd*pfd), -pfd*sin(theta_d1)*cos(phi_d1),
-    // 		       -pfd*sin(theta_d1)*sin(phi_d1), pfd*cos(theta_d1));
-    // 	  // Boost the two daughters from the ref. frame of the heavy particle to the lab.
-    // 	  double BetaHX;	double BetaHY;	double BetaHZ;
-    // 	  EvaR[er]->GetBeta(BetaHX, BetaHY, BetaHZ);	
-    // 	  DeDau1->Boost(-BetaHX, -BetaHY, -BetaHZ);
-    // 	  DeDau1->SetX(tof, 0, 0, zr);
-    // 	  DeDau2->Boost(-BetaHX, -BetaHY, -BetaHZ);
-    // 	  DeDau2->SetX(tof, 0, 0, zr);
-    // 	}
-    // 	else 
-    // 	  ReactionAllowed = 0;
-    //   }
-    // }
-
   // Fill the leaves related to the reaction kinematics
   Kb = Beam->GetKE();
   //  Kh = EvaR[er]->GetKE();
@@ -1893,6 +1877,20 @@ void MUSIC_Simulator::SetStripEnergyResolution(float Sigma)
 
 
 ///////////////////////////////////////////////////////////////////////////////////
+// Function that passes the 'gSystem' pointer (generated in each root session to
+// the corresponding pointer member of this class. The 'this->gSystem' pointer is 
+// mainly used to keep track of the memory used by the program.
+///////////////////////////////////////////////////////////////////////////////////
+void MUSIC_Simulator::SetROOTSystemPointer(TSystem* gSystem)
+{
+  this->gSystem = gSystem;
+  cout << "gSystem = " << gSystem << endl;
+  CheckMemoryUsage(1);
+  return;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////
 // Create the target particle object (currently the charge is not used).
 ///////////////////////////////////////////////////////////////////////////////////
 void MUSIC_Simulator::SetTargetParticle(string Name)
@@ -1925,7 +1923,7 @@ void MUSIC_Simulator::SetTargetParticle(string Name)
 // 7. Compute detector response (i.e. DE for beam + light + heavy + etc)
 // 8. Display trace and particle trajecories
 ///////////////////////////////////////////////////////////////////////////////////
-void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double UserDT, int UpdateVis, 
+void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double UserStep, int UpdateVis, 
 			       int Wait, string FileName)
 {
   double ti,xi,yi,zi, tf,xf,yf,zf;
@@ -1988,7 +1986,8 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
   BeamCopy->Copy(Beam);
   if (PrintLevel>0)
     BeamCopy->Print();
-  DeltaEB_ave = PropagateParticle(BeamCopy, Kb_after_window, MaxTime, UserDT); 
+  //  DeltaEB_ave = PropagateParticle(BeamCopy, Kb_after_window, MaxTime, UserStep); 
+  PropagateParticle(BeamCopy, Kb_after_window, MaxTime, UserStep, DeltaEB_ave);
   for (int stp=0; stp<AnodeStps; stp++)
     for (int col=0; col<AnodeCols+1; col++) 
       TraceB[col]->SetPoint(stp, stp, DeltaEB_ave[stp][col]);
@@ -2039,8 +2038,19 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
   }
   //-------------------------------------------------------------------------------
 
+
+
+  //-------------------------------------------------------------------------------
   // Event for-loop
+  //-------------------------------------------------------------------------------
+  cout << "Initiating envent for-loop" << endl;
   for (int evt=0; evt<NEvents; evt++) {
+    if (evt%1000==0)
+      if (CheckMemoryUsage()==0) {
+	cout << "Exiting event for-loop" << endl;
+	break;
+      }
+    
     if (PrintLevel>0)
       cout << "\n***************** Event " << evt << "\n" << endl;
     
@@ -2072,7 +2082,7 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
     double TOF = Beam->GetTimeOfFlight(0);
     if (PrintLevel>0)
       cout << "Kbr = " << Kbr << "  zr = " << zr << "  tof = " << TOF << endl;
-    
+
     // 3. Set the kinematics of all particles at the reaction point
     int ReacAllowed = SetReactionKinematics(Kbr, zr, TOF);
     // Check conservation of 4-momentum
@@ -2092,40 +2102,29 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
       Pf.Print();
     }
 
-
     if (ReacAllowed) {
       // 4. Propagate the beam particle (backwards in time) from the
       // reaction point to the entrance of MUSIC
       Beam->GetX(tf,xf,yf,zf);
-      DeltaEB = PropagateParticle(Beam, evt, MaxTime, -UserDT);
+      //DeltaEB = PropagateParticle(Beam, evt, MaxTime, -UserStep);
+      PropagateParticle(Beam, evt, MaxTime, -UserStep, DeltaEB);
       Beam->GetX(ti,xi,yi,zi);                      // <- This is not a mistake
       TrackBeam->SetOrigin(xi,yi,zi);
       TrackBeam->SetVector(xf-xi,yf-yi,zf-zi);
-
-      // 5. Propagate heavy particle (or decay daughters) and calculate energy 
-      // loss in the anode elements
-      // if (DeDau1 && DeDau2) {
-      // 	DeltaED1 = PropagateParticle(DeDau1, evt, MaxTime, UserDT);
-      // 	DeltaED2 = PropagateParticle(DeDau2, evt, MaxTime, UserDT);
-      // }
-      // else
-      // 	DeltaEH = PropagateParticle(Heavy, evt, MaxTime, UserDT);
-      
-      // 6. Propagate light particle and calculate energy loss in the
-      // anode elements
-      //   DeltaEL = PropagateParticle(Light, evt, MaxTime, UserDT);
 
       // 5-6. Propagate outgoing particles (evaporation residues)
       for (int er=0; er<CurEva; er++) {
 	// evaporated (light) particle (p,n,4He)
 	EvaP[er]->GetX(ti,xi,yi,zi);
-	DeltaE_EvaP[er] = PropagateParticle(EvaP[er], evt, MaxTime, UserDT);
+	//DeltaE_EvaP[er] = PropagateParticle(EvaP[er], evt, MaxTime, UserStep);
+	PropagateParticle(EvaP[er], evt, MaxTime, UserStep, DeltaE_EvaP[er]);
 	EvaP[er]->GetX(tf,xf,yf,zf);
 	TrackEvaP[er]->SetOrigin(xi,yi,zi);
 	TrackEvaP[er]->SetVector(xf-xi,yf-yi,zf-zi);
 	// evaporation residue (heavy particle)
 	EvaR[er]->GetX(ti,xi,yi,zi);
-	DeltaE_EvaR[er] = PropagateParticle(EvaR[er], evt, MaxTime, UserDT);
+	//	DeltaE_EvaR[er] = PropagateParticle(EvaR[er], evt, MaxTime, UserStep);
+	PropagateParticle(EvaR[er], evt, MaxTime, UserStep, DeltaE_EvaR[er]);
 	EvaR[er]->GetX(tf,xf,yf,zf);
 	TrackEvaR[er]->SetOrigin(xi,yi,zi);
 	TrackEvaR[er]->SetVector(xf-xi,yf-yi,zf-zi);
@@ -2133,7 +2132,8 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
     }
     else {
       Beam->Copy(BeamInit);
-      PropagateParticle(Beam, Kb_after_window, MaxTime, UserDT); 
+      //      PropagateParticle(Beam, Kb_after_window, MaxTime, UserStep);
+      PropagateParticle(Beam, Kb_after_window, MaxTime, UserStep, DeltaEB); 
       cout << "Warninig: reaction energetically not allowed for event " << evt 
 	   << " (Kbr= " << Kbr << " MeV)." << endl;
     }
@@ -2142,7 +2142,7 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
     // Clone the particle trajectories
     ComputeDetectorResponse(evt, StpID, UpdateVis);
     SimTree->Fill();
-      
+
     // 8. Display trace and particle trajecories
     if (UpdateVis)
       UpdateVisuals(evt, Kbr, zr, TOF, Wait);
@@ -2162,6 +2162,10 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
   StpWatch.Stop();
   StpWatch.Print();
 
+  cout << "Envent for-loop concluded." << endl;
+  CheckMemoryUsage(1);
+
+
   if (ROOTfile) {
     ROOTfile->cd();
     SimTree->Write("", TObject::kSingleKey);
@@ -2177,7 +2181,7 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
 ///////////////////////////////////////////////////////////////////////////////////
 void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int ThSteps,
 			       double PhiCMMin, double PhiCMMax, int PhiSteps, double MaxTime,
-			       double UserDT, int Wait)
+			       double UserStep, int Wait)
 {
   // Verify that the anode geometry has been set
   if (VolAnode==0) {
@@ -2228,7 +2232,8 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
   BeamCopy->Copy(Beam);
   if (PrintLevel>0)
     BeamCopy->Print();
-  DeltaEB_ave = PropagateParticle(BeamCopy, Kb_after_window, MaxTime, UserDT); 
+  //  DeltaEB_ave = PropagateParticle(BeamCopy, Kb_after_window, MaxTime, UserStep); 
+  PropagateParticle(BeamCopy, Kb_after_window, MaxTime, UserStep, DeltaEB_ave);
   for (int stp=0; stp<AnodeStps; stp++)
     for (int col=0; col<AnodeCols+1; col++) 
       TraceB[col]->SetPoint(stp, stp, DeltaEB_ave[stp][col]);
@@ -2323,15 +2328,18 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
       
       // 4. Propagate the beam particle (backwards in time) from the
       // reaction point to the entrance of MUSIC
-      DeltaEB = PropagateParticle(Beam, evt, MaxTime, -UserDT);
+      //    DeltaEB = PropagateParticle(Beam, evt, MaxTime, -UserStep);
+      PropagateParticle(Beam, evt, MaxTime, -UserStep, DeltaEB);
       
       // 5. Propagate heavy particle and calculate energy loss in the
       // anode elements
-      DeltaEH = PropagateParticle(Heavy, evt, MaxTime, UserDT);
+      //      DeltaEH = PropagateParticle(Heavy, evt, MaxTime, UserStep);
+      PropagateParticle(Heavy, evt, MaxTime, UserStep, DeltaEH);
       
       // 6. Propagate light particle and calculate energy loss in the
       // anode elements
-      DeltaEL = PropagateParticle(Light, evt, MaxTime, UserDT);
+      //      DeltaEL = PropagateParticle(Light, evt, MaxTime, UserStep);
+      PropagateParticle(Light, evt, MaxTime, UserStep, DeltaEL);
       
       // 7. Compute detector response (i.e. DE for beam + light + heavy)
       // Clone the particle trajectories
@@ -2515,7 +2523,10 @@ void MUSIC_Simulator::WriteTraces(char* FileName)
 {
 #if 1
   TFile* Output = new TFile(FileName, "update");
-  if (Trace!=0)
+  Output->cd();
+  TDirectory* trace_dir = Output->mkdir("traces");
+  trace_dir->cd();
+  if (Trace!=0) {
     for (int n=0; n<NTraces; n++)
       if (Trace[n]!=0) {
 	for (int col=0; col<AnodeCols+1; col++) {
@@ -2525,6 +2536,7 @@ void MUSIC_Simulator::WriteTraces(char* FileName)
 	    Trace[n][col]->Write(Form("Trace%dc%d",n,col), TObject::kOverwrite);
 	}
       }
+  }
   Output->Close();
 #endif
   return;

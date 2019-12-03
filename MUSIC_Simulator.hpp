@@ -24,6 +24,7 @@
 
 //ROOT libraries
 #include <TCanvas.h>
+#include <TDirectory.h>
 #include <TEveArrow.h>
 #include <TEveGeoNode.h>
 #include <TEveLine.h>
@@ -48,6 +49,7 @@
 #include <TSlider.h>
 #include <TString.h>
 #include <TStopwatch.h>
+#include <TSystem.h>
 #include <TTree.h>
 
 // Useful libraries
@@ -68,7 +70,7 @@ public:
   void GenerateTraceDatabase(std::string FileName,
 			     double ThCMMin, double ThCMMax, int ThSteps,
 			     double PhiCMMin, double PhiCMMax, int PhiSteps,
-			     double MaxTime, double UserDT, int UpdateEnabled=0, int Wait=0);
+			     double MaxTime, double UserStep, int UpdateEnabled=0, int Wait=0);
   void SetAnode(std::string AnodeGeomFile, short Trans/*From 0 to 100*/, int ELossBins=400, 
 		float MaxELoss=5);
   void SetBeamParticle(std::string Name, int Color, std::string ELossFile, double KineticE/*MeV*/);
@@ -83,20 +85,23 @@ public:
   void SetLightParticle(std::string Name, int Color, std::string ELossFile);
 
   void SetPrintLevel(int PrintLevel);
+  void SetROOTSystemPointer(TSystem* gSystem);
   void SetStripEnergyResolution(float Sigma/*MeV*/);
   void SetTargetParticle(std::string Name);
-  void Simulate(int StpID, int NEvents, double MaxTime, double UserDT, int UpdateVis=0, int Wait=0, string FileName="");
+  void Simulate(int StpID, int NEvents, double MaxTime, double UserStep, int UpdateVis=0, int Wait=0, string FileName="");
   void Simulate(int StpID, double ThCMMin, double ThCMMax, int ThSteps, double PhiCMMin, 
-		double PhiCMMax, int PhiSteps, double MaxTime, double UserDT, int Wait=0);
+		double PhiCMMax, int PhiSteps, double MaxTime, double UserStep, int Wait=0);
   void WriteTraces(char* FileName);
 
+
 private:
+  int CheckMemoryUsage(int Print=0);
   void ComputeDetectorResponse(int event, int reacStp, int UpdateVis);
   void CreateTracesAndTrajectories(int NEvents);
   void DrawMUSIC(TEveManager* gEve, short Transparency /*From 0 to 100*/);
   void PrintCompoundEexc(double Kb, double** DeltaEB);
   void PrintEnergetics(double Kb, double** DeltaEB);
-  double** PropagateParticle(Particle* PO, int Event, double MaxTime, double UserDT);
+  int PropagateParticle(Particle* PO, int Event, double MaxTime, double UserStep, double ** DE);
   void SetInitialKinematics(double Kbi);
   int SetReactionKinematics(double Kbr, double zr, double tof, double theta_CM=-1, double phi_CM=-1);
   void UpdateVisuals(int event, double Kbr, double zr, double TOF, int Wait=0);
@@ -218,6 +223,10 @@ private:
 
   // Log file
   ofstream Log;
+
+  // To be used in CheckMemory
+  TSystem* gSystem;
+  float MaxMemory;
 
   // Use these two lines when compiling with root-config ver5
   //  static const double c = 29.9792458;  // Speed of light in cm/ns.
