@@ -85,13 +85,13 @@ public:
   void SetPrintLevel(int PrintLevel);
   void SetStripEnergyResolution(float Sigma/*MeV*/);
   void SetTargetParticle(std::string Name);
-  void Simulate(int StpID, int NEvents, double MaxTime, double UserDT, int Update=0, int Wait=0);
+  void Simulate(int StpID, int NEvents, double MaxTime, double UserDT, int UpdateVis=0, int Wait=0, string FileName="");
   void Simulate(int StpID, double ThCMMin, double ThCMMax, int ThSteps, double PhiCMMin, 
 		double PhiCMMax, int PhiSteps, double MaxTime, double UserDT, int Wait=0);
   void WriteTraces(char* FileName);
 
 private:
-  void ComputeDetectorResponse(int event, int reacStp);
+  void ComputeDetectorResponse(int event, int reacStp, int UpdateVis);
   void CreateTracesAndTrajectories(int NEvents);
   void DrawMUSIC(TEveManager* gEve, short Transparency /*From 0 to 100*/);
   void PrintCompoundEexc(double Kb, double** DeltaEB);

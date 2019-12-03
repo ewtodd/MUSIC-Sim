@@ -280,7 +280,7 @@ void MUSIC_Simulator::CalculateExcEnergyRange()
 ///////////////////////////////////////////////////////////////////////////////////
 // Private method, to be used in an event loop.
 ///////////////////////////////////////////////////////////////////////////////////
-void MUSIC_Simulator::ComputeDetectorResponse(int evt, int reacStp)
+void MUSIC_Simulator::ComputeDetectorResponse(int evt, int reacStp, int UpdateVis)
 {
 #if 1
   if (PrintLevel>0)
@@ -290,7 +290,7 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt, int reacStp)
   TraceMult->Reset();
 
   // 3D trajectories (why clone and not just point to them?)
-  if (evt<Particle::MaxEvents) {
+  if (evt<Particle::MaxEvents && UpdateVis) {
     if (Heavy) {
       //      TrajH[evt] = (TEveStraightLineSet*)Heavy->AllTraj[evt]->Clone();
       TrajH[evt] = (TEveStraightLineSet*)Heavy->Trajectory->Clone();
@@ -594,7 +594,7 @@ void MUSIC_Simulator::DrawMUSIC(TEveManager* gEve, short Transparency /*From 0 t
 void MUSIC_Simulator::GenerateTraceDatabase(string FileName, 
 					    double ThCMMin, double ThCMMax, int ThSteps,
 					    double PhiCMMin, double PhiCMMax, int PhiSteps,
-					    double MaxTime, double UserDT, int Update,
+					    double MaxTime, double UserDT, int UpdateVis,
 					    int Wait)
 {
   double ti,xi,yi,zi, tf,xf,yf,zf;
@@ -616,9 +616,9 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
 
   // Tree similar to the one used for experimental data
   SimTree = new TTree("simt","Simulated MUSIC data");
-  SimTree->Branch("de_l",  de_l,     Form("de_l[%d]/F",AnodeStps));
-  SimTree->Branch("de_r",  de_r,     Form("de_r[%d]/F",AnodeStps));
-  SimTree->Branch("seg",   seg,      Form("seg[%d]/I",AnodeStps));
+  SimTree->Branch("de_l",  de_l,     Form("de_l[%d]/F",ExpAnodeStps));
+  SimTree->Branch("de_r",  de_r,     Form("de_r[%d]/F",ExpAnodeStps));
+  SimTree->Branch("seg",   seg,      Form("seg[%d]/I",ExpAnodeStps));
   SimTree->Branch("stp0",  &strip0,  "stp0/F");
   SimTree->Branch("stp17", &strip17, "stp17/F");
   SimTree->Branch("cath",  &cathode, "cath/F");
@@ -846,11 +846,11 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
 	  
 	  // 7. Compute detector response (i.e. DE for beam + light + heavy)
 	  // Clone the particle trajectories
-	  ComputeDetectorResponse(evt, stp_base);
+	  ComputeDetectorResponse(evt, stp_base, UpdateVis);
 	  SimTree->Fill();
 	  
 	  // 8. Display trace and particle trajecories   
-	  if (Update) 
+	  if (UpdateVis) 
 	    UpdateVisuals(evt, Kbr, zr, TOF, Wait);
 	  
 	  // Simple progress monitor
@@ -1925,8 +1925,8 @@ void MUSIC_Simulator::SetTargetParticle(string Name)
 // 7. Compute detector response (i.e. DE for beam + light + heavy + etc)
 // 8. Display trace and particle trajecories
 ///////////////////////////////////////////////////////////////////////////////////
-void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double UserDT, int Update, 
-			       int Wait)
+void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double UserDT, int UpdateVis, 
+			       int Wait, string FileName)
 {
   double ti,xi,yi,zi, tf,xf,yf,zf;
 #if 1
@@ -1943,12 +1943,18 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
   long EvtsProcessed = 0;
   long double Frac[6] = {0.01, 0.25, 0.5, 0.75, 0.9, 1.0};
   int FIndex = 0;
+
+  // ROOT file where the traces will be saved
+  TFile* ROOTfile = 0;
+  
+  if (FileName!="")
+    ROOTfile = new TFile(FileName.c_str(), "recreate");
   
   // Tree similar to the one used for experimental data
   SimTree = new TTree("simt","Simulated MUSIC data");
-  SimTree->Branch("de_l",  de_l,     Form("de_l[%d]/F",AnodeStps));
-  SimTree->Branch("de_r",  de_r,     Form("de_r[%d]/F",AnodeStps));
-  SimTree->Branch("seg",   seg,      Form("seg[%d]/I",AnodeStps));
+  SimTree->Branch("de_l",  de_l,     Form("de_l[%d]/F",ExpAnodeStps));
+  SimTree->Branch("de_r",  de_r,     Form("de_r[%d]/F",ExpAnodeStps));
+  SimTree->Branch("seg",   seg,      Form("seg[%d]/I",ExpAnodeStps));
   SimTree->Branch("stp0",  &strip0,  "stp0/F");
   SimTree->Branch("stp17", &strip17, "stp17/F");
   SimTree->Branch("cath",  &cathode, "cath/F");
@@ -2134,11 +2140,11 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
 
     // 7. Compute detector response (i.e. DE for beam + light + heavy)
     // Clone the particle trajectories
-    ComputeDetectorResponse(evt, StpID);
+    ComputeDetectorResponse(evt, StpID, UpdateVis);
     SimTree->Fill();
       
     // 8. Display trace and particle trajecories
-    if (Update)
+    if (UpdateVis)
       UpdateVisuals(evt, Kbr, zr, TOF, Wait);
     
     // Simple progress monitor
@@ -2153,7 +2159,15 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
     
     NTraces++;
   }
+  StpWatch.Stop();
   StpWatch.Print();
+
+  if (ROOTfile) {
+    ROOTfile->cd();
+    SimTree->Write("", TObject::kSingleKey);
+    ROOTfile->Close();
+  }
+
 #endif
   return;
 }
@@ -2173,9 +2187,9 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
   
   // Tree similar to the one used for experimental data
   SimTree = new TTree("simt","Simulated MUSIC data");
-  SimTree->Branch("de_l",  de_l,     Form("de_l[%d]/F",AnodeStps));
-  SimTree->Branch("de_r",  de_r,     Form("de_r[%d]/F",AnodeStps));
-  SimTree->Branch("seg",   seg,      Form("seg[%d]/I",AnodeStps));
+  SimTree->Branch("de_l",  de_l,     Form("de_l[%d]/F",ExpAnodeStps));
+  SimTree->Branch("de_r",  de_r,     Form("de_r[%d]/F",ExpAnodeStps));
+  SimTree->Branch("seg",   seg,      Form("seg[%d]/I",ExpAnodeStps));
   SimTree->Branch("stp0",  &strip0,  "stp0/F");
   SimTree->Branch("stp17", &strip17, "stp17/F");
   SimTree->Branch("cath",  &cathode, "cath/F");
@@ -2321,7 +2335,7 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
       
       // 7. Compute detector response (i.e. DE for beam + light + heavy)
       // Clone the particle trajectories
-      ComputeDetectorResponse(evt, StpID);
+      ComputeDetectorResponse(evt, StpID, 1);
       
       // 8. Display trace and particle trajecories   
       UpdateVisuals(evt, Kbr, zr, TOF, Wait);
@@ -2500,9 +2514,7 @@ void MUSIC_Simulator::UpdateVisuals(int evt, double Kbr, double zr, double TOF, 
 void MUSIC_Simulator::WriteTraces(char* FileName)
 {
 #if 1
-  TFile* Output = new TFile(FileName, "RECREATE");
-  if (SimTree)
-    SimTree->Write("", TObject::kSingleKey);
+  TFile* Output = new TFile(FileName, "update");
   if (Trace!=0)
     for (int n=0; n<NTraces; n++)
       if (Trace[n]!=0) {

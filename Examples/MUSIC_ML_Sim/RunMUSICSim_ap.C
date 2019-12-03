@@ -49,9 +49,9 @@ void RunMUSICSim_ap()
   }
 
   double Kb = 42.59;   // MeV - Energy of the beam after the Ti window and Al degrader
-  int Strip = 5;     // Strip where reaction takes place
+  int Strip = 3;     // Strip where reaction takes place
   float Eres = 0.01;  // MeV - Strip energy resolution (larger values increase signal randomness)
-  int NEvents = 1000;   // Number of simulated events (recommendation: keep it <1000)
+  int NEvents = 50000;   // Number of simulated events (recommendation: keep it <1000)
   int Wait = 0;       // 1 - canvas waits for user's double click, 0 - no wait
   int Update = 0;     // 1 - update visuals for every event, 0 - don't
   double MaxTime = 1000;   // ns - max time for an event
@@ -89,8 +89,8 @@ void RunMUSICSim_ap()
 
   if (Method==0) {
     // Simulate events for one strip or generate trace data base (see below)
-    MUSIC->Simulate(Strip, NEvents, MaxTime, UserDT, Update, Wait);
-    MUSIC->WriteTraces(Form("Traces_Stp%d_ap.root", Strip));
+    MUSIC->Simulate(Strip, NEvents, MaxTime, UserDT, Update, Wait, Form("Traces_Stp%d_ap_50k.root", Strip));
+    //  MUSIC->WriteTraces(Form("Traces_Stp%d_ap_100k.root", Strip));
   }
   else if (Method==1) {
     MUSIC->GenerateTraceDatabase("TraceDB_ap.root", 
