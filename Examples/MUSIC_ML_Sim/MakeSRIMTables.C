@@ -32,7 +32,7 @@ void MakeSRIMTables()
   particle[4] = "16O";
   //
   // Target gas related stuff
-  float GasP = 406; // Torr
+  float GasP = 506; // Torr
   float GasT = 293; // K
   int GasIndex = 3;
   // You have to use the same index numbers as in the SRIM_Table_Maker class.
