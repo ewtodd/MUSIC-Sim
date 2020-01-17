@@ -55,7 +55,7 @@
   int Wait = 1;       // 1 - canvas waits for user's double click, 0 - no wait
   int Update = 1;     // 1 - update visuals for every event, 0 - don't
   double MaxTime = 2000;   // ns - max time for an event
-  double SimStep = 0.01;     // cm - simulation steps size
+  double SimStep = 0.001;     // cm - simulation steps size
   int Method = 0;    // Select the simulation method: 0 - Simulate, 1 - GenerateTraceDatabase
   string FileName = Form("Traces_Stp%d_test.root", strip);
   string FileOpt = "recreate"; // recreate or update
@@ -76,7 +76,7 @@
 
   MUSIC_Simulator* MUSIC = new MUSIC_Simulator();
   MUSIC->SetROOTSystemPointer(gSystem);
-  MUSIC->SetPrintLevel(1);
+  MUSIC->SetPrintLevel(0);
   MUSIC->SetStripEnergyResolution(Eres);
   // Geometry
   MUSIC->SetAnode(AnodeGeom, 90/*transparency 0-100*/, ELossBins, MaxELoss);

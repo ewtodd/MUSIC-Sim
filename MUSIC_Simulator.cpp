@@ -39,10 +39,6 @@ MUSIC_Simulator::MUSIC_Simulator()
   Gaussian = 0;
   Target = 0;
   Trace = 0;
-  TraceH = 0;
-  TraceD1 = 0;
-  TraceD2 = 0;
-  TraceL = 0;
   Compound = 0;
   Light = 0;
   Heavy = 0;
@@ -81,11 +77,11 @@ MUSIC_Simulator::MUSIC_Simulator()
 
   // Canvas and legends for traces
   TraceCan = new TCanvas("TraceCan","Traces", 0, 0, 960, 1018);
-  TraceCan->Divide(1,2);
+  TraceCan->Divide(2,2);
   TraceCan->cd(1)->SetGrid();
   TraceCan->cd(2)->SetGrid();
-  //  TraceCan->cd(3)->SetGrid();
-  //  TraceCan->cd(3)->SetGrid();
+  TraceCan->cd(3)->SetGrid();
+  TraceCan->cd(4)->SetGrid();
   LegCol = new TLegend(0.692,0.616,0.826,0.861);
   LegPart = new TLegend(0.692,0.616,0.826,0.861);
   LabelKine = new TPaveText(0.152,0.679,0.437,0.875,"NDC");
@@ -342,11 +338,12 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt, int reacStp, int UpdateVi
 	  }
 	}
       }
-      if (EneSigma!=0 && Gaussian!=0 && DeltaE>0) {
-	Gaussian->SetRange(0.0, 2*DeltaE);
-	Gaussian->SetParameters(1.0, DeltaE, EneSigma);
-	DeltaE = Gaussian->GetRandom();
-      }
+      // Changed randomness to PropagateParticle method
+      // if (EneSigma!=0 && Gaussian!=0 && DeltaE>0) {
+      // 	Gaussian->SetRange(0.0, 2*DeltaE);
+      // 	Gaussian->SetParameters(1.0, DeltaE, EneSigma);
+      // 	DeltaE = Gaussian->GetRandom();
+      // }
       Trace[col]->SetPoint(stp, stp, DeltaE);
       // if (PrintLevel>0)
       // 	cout << stp << " " << col << ": " << DeltaE << " = " << DeltaEB[stp][col] << "+" 
@@ -394,24 +391,7 @@ void MUSIC_Simulator::CreateTracesAndTrajectories(int NEvents)
     }
   }
 
-  // Initialize beam traces for each column (this trace does not
-  // depend on the number of events)
-  TraceB = new TGraph*[AnodeCols+1];
-  for (int col=0; col<AnodeCols+1; col++) {
-    TraceB[col] = new TGraph();
-    if (col==AnodeCols) {
-      TraceB[col]->SetName("Beam trace");
-      TraceB[col]->SetLineColor(kGray);
-      TraceB[col]->SetLineWidth(3);
-    }
-    else {
-      TraceB[col]->SetName(Form("Beam trace col %d", col));
-      TraceB[col]->SetLineColor(kGray);
-      TraceB[col]->SetLineStyle(2);
-      TraceB[col]->SetLineWidth(2);
-    }
-  }
-  // Initialize the rest of the traces for each column
+  // Initialize the 'detector' traces for each column
   Trace = new TGraph*[AnodeCols+1];
   for (int col=0; col<AnodeCols+1; col++) {
     Trace[col] = new TGraph();
@@ -432,17 +412,82 @@ void MUSIC_Simulator::CreateTracesAndTrajectories(int NEvents)
   TraceMult->GetXaxis()->SetTitle("Strip index (in AnodeGeometry file)");
   TraceMult->GetXaxis()->CenterTitle();
  
-  // 3D trajectories
-  // TrajH = new TEveStraightLineSet*[NEvents];
-  // TrajD1 = new TEveStraightLineSet*[NEvents];
-  // TrajD2 = new TEveStraightLineSet*[NEvents];
-  // TrajL = new TEveStraightLineSet*[NEvents];
-  //  TrajEvaP = new TEveStraightLineSet**[NEvents];
-  //  TrajEvaR = new TEveStraightLineSet**[NEvents];
-  for (int e=0; e<NEvents; e++) {
-    //    TrajEvaP[e] = new TEveStraightLineSet*[MaxEva];
-    //    TrajEvaR[e] = new TEveStraightLineSet*[MaxEva];
-  }    
+  // Initialize the traces corresponding to the unreacted beam (UB)
+  TraceUB = new TGraph*[AnodeCols+1];
+  for (int col=0; col<AnodeCols+1; col++) {
+    TraceUB[col] = new TGraph();
+    if (col==AnodeCols) {
+      TraceUB[col]->SetName("Beam trace");
+      TraceUB[col]->SetLineColor(kGray);
+      TraceUB[col]->SetLineWidth(3);
+    }
+    else {
+      TraceUB[col]->SetName(Form("Beam trace col %d", col));
+      TraceUB[col]->SetLineColor(kGray);
+      TraceUB[col]->SetLineStyle(2);
+      TraceUB[col]->SetLineWidth(2);
+    }
+  }
+
+  // Initialize the traces corresponding to the beam particle
+  TraceB = new TGraph*[AnodeCols+1];
+  for (int col=0; col<AnodeCols+1; col++) {
+    TraceB[col] = new TGraph();
+    if (col==AnodeCols) {
+      TraceB[col]->SetName("Beam trace");
+      TraceB[col]->SetLineColor(kGray+2);
+      TraceB[col]->SetLineWidth(3);
+    }
+    else {
+      TraceB[col]->SetName(Form("Beam trace col %d", col));
+      TraceB[col]->SetLineColor(kGray);
+      TraceB[col]->SetLineStyle(2);
+      TraceB[col]->SetLineWidth(2);
+    }
+  }
+  
+  // Initialize the traces corresponding to the evaporation residues
+  // (heavy particles)
+  TraceER = new TGraph**[CurEva];
+  for (int er=0; er<CurEva; er++) {
+    TraceER[er] = new TGraph*[AnodeCols+1];
+    for (int col=0; col<AnodeCols+1; col++) {
+      TraceER[er][col] = new TGraph();
+      if (col==AnodeCols) {
+	TraceER[er][col]->SetName(Form("%s trace",EvaR[er]->Name.c_str()));
+	TraceER[er][col]->SetLineColor(EvaR[er]->GetColor());
+	TraceER[er][col]->SetLineWidth(3);
+      }
+      else {
+	TraceER[er][col]->SetName(Form("%s trace col %d", EvaR[er]->Name.c_str(), col));
+	TraceER[er][col]->SetLineColor(EvaR[er]->GetColor()-er-1);
+	TraceER[er][col]->SetLineStyle(2);
+	TraceER[er][col]->SetLineWidth(2);
+      }
+    }
+  }
+
+  // Initialize the traces corresponding to the evaporated particles
+  // (light particles, p, n, 4He)
+  TraceEP = new TGraph**[CurEva];
+  for (int er=0; er<CurEva; er++) {
+    TraceEP[er] = new TGraph*[AnodeCols+1];
+    for (int col=0; col<AnodeCols+1; col++) {
+      TraceEP[er][col] = new TGraph();
+      if (col==AnodeCols) {
+	TraceEP[er][col]->SetName(Form("%s trace",EvaP[er]->Name.c_str()));
+	TraceEP[er][col]->SetLineColor(EvaP[er]->GetColor());
+	TraceEP[er][col]->SetLineWidth(3);
+      }
+      else {
+	TraceEP[er][col]->SetName(Form("%s trace col %d", EvaP[er]->Name.c_str(), col));
+	TraceEP[er][col]->SetLineColor(EvaP[er]->GetColor()-er-1);
+	TraceEP[er][col]->SetLineStyle(2);
+	TraceEP[er][col]->SetLineWidth(2);
+      }
+    }
+  }
+
 #endif
   return;
 }
@@ -572,7 +617,7 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
   PropagateParticle(BeamCopy, Kb_after_window, MaxTime, UserStep, DeltaEB_ave);
   for (int stp=0; stp<AnodeStps; stp++)
     for (int col=0; col<AnodeCols+1; col++) 
-      TraceB[col]->SetPoint(stp, stp, DeltaEB_ave[stp][col]);
+      TraceUB[col]->SetPoint(stp, stp, DeltaEB_ave[stp][col]);
 
 
   //  PrintEnergetics(Kb_after_window, DeltaEB_ave);
@@ -636,8 +681,6 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
 	  
 	  TraceCan->cd(1);
 	  HCT->Draw();
-	  // TraceCan->cd(2);
-	  // HPT->Draw();
 	  
 	  // Reset the detector response
 	  for (int stp=0; stp<AnodeStps; stp++) 
@@ -1009,7 +1052,7 @@ int MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxTime, 
     }
     
     DE[stp][col] += fabs(Ki - Kf);
-    DE[stp][AnodeCols] += fabs(Ki - Kf);
+    // DE[stp][AnodeCols] += fabs(Ki - Kf); // AnodeCols component determined at the end
     
     if (PrintLevel>0) 
       if (PrintLevel>1 || step==0) 
@@ -1054,6 +1097,20 @@ int MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxTime, 
       PO->SetTracePoint((float)tt, (float)xt, (float)yt, (float)zt, (float)Kt);
     }
   } // end 
+
+  // Adding randomness to the energy loss to mimic eperimental jitter
+  if (EneSigma!=0 && Gaussian!=0) {
+    for (int stp = 0; stp<AnodeStps; stp++) 
+      for (int col = 0; col<AnodeCols; col++)  {
+	if (DE[stp][col]>0) {
+	  Gaussian->SetRange(0.0, 2*DE[stp][col]);
+	  Gaussian->SetParameters(1.0, DE[stp][col], EneSigma);
+	  DE[stp][col] = Gaussian->GetRandom();
+	}	
+	DE[stp][AnodeCols] += DE[stp][col];
+      }
+  }
+
   PO->SetX(tf,xf,yf,zf);
   PO->SetP(Ene, p_mag*cos(phi)*sin(theta), p_mag*sin(phi)*sin(theta), p_mag*cos(theta));
 #endif
@@ -1698,16 +1755,17 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
     
   // Fill the leaves related to the reaction kinematics
   Kb = Beam->GetKE();
-  //  Kh = EvaR[er]->GetKE();
   this->theta_CM = theta_CM*180/pi;
   this->phi_CM = phi_CM*180/pi;
-  if (Light) {
-    Kl = Light->GetKE();
-    theta_l = (Light->GetTheta())*180/pi;
-    phi_l = (Light->GetPhi())*180/pi;
-  }
-  //  theta_h = (EvaR[er]->GetTheta())*180/pi;
-  // phi_h = (EvaR[er]->GetPhi())*180/pi;
+
+  // Warning: hack to save kinetic energy of ER and EP for (a,p) case. Need to generalize to CurEva
+  cout << "Warning: using hack to save kinetic energy and angles of ER and EP for (a,p) case. Need to generalize to CurEva" << endl;
+  Kh = EvaR[0]->GetKE();    
+  Kl = EvaP[0]->GetKE();     
+  theta_l = (EvaP[0]->GetTheta())*180/pi;
+  phi_l = (EvaP[0]->GetPhi())*180/pi;
+  theta_h = (EvaR[0]->GetTheta())*180/pi;
+  phi_h = (EvaR[0]->GetPhi())*180/pi;
 
   // Update the kinematics label and then draw it
   LabelKine->Clear();
@@ -1911,9 +1969,7 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
   PropagateParticle(BeamCopy, Kb_after_window, MaxTime, UserStep, DeltaEB_ave);
   for (int stp=0; stp<AnodeStps; stp++)
     for (int col=0; col<AnodeCols+1; col++) 
-      TraceB[col]->SetPoint(stp, stp, DeltaEB_ave[stp][col]);
-  
-  cout << "********** DeltaEB_ave = "<< DeltaEB_ave[0][0] << endl;
+      TraceUB[col]->SetPoint(stp, stp, DeltaEB_ave[stp][col]);
   
   // PrintEnergetics(Kb_after_window, DeltaEB_ave);
 
@@ -1974,8 +2030,8 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
     
     TraceCan->cd(1);
     HCT->Draw();
-    // TraceCan->cd(2);
-    // HPT->Draw();
+    TraceCan->cd(2);
+    HPT->Draw();
     
     // Reset the detector response
     for (int stp=0; stp<AnodeStps; stp++) 
@@ -2024,28 +2080,33 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
       // 4. Propagate the beam particle (backwards in time) from the
       // reaction point to the entrance of MUSIC
       Beam->GetX(tf,xf,yf,zf);
-      //DeltaEB = PropagateParticle(Beam, evt, MaxTime, -UserStep);
       PropagateParticle(Beam, evt, MaxTime, -UserStep, DeltaEB);
-      cout << "********** DeltaEB = "<< DeltaEB[0][0] << endl;
+      for (int stp=0; stp<AnodeStps; stp++)
+	for (int col=0; col<AnodeCols+1; col++) 
+	  TraceB[col]->SetPoint(stp, stp, DeltaEB[stp][col]);
       Beam->GetX(ti,xi,yi,zi);                      // <- This is not a mistake
       TrackBeam->SetOrigin(xi,yi,zi);
       TrackBeam->SetVector(xf-xi,yf-yi,zf-zi);
 
       // 5-6. Propagate outgoing particles (evaporation residues)
       for (int er=0; er<CurEva; er++) {
+
 	// evaporated (light) particle (p,n,4He)
 	EvaP[er]->GetX(ti,xi,yi,zi);
-	//DeltaE_EvaP[er] = PropagateParticle(EvaP[er], evt, MaxTime, UserStep);
 	PropagateParticle(EvaP[er], evt, MaxTime, UserStep, DeltaE_EvaP[er]);
-	cout << "********** DeltaE_p = "<< DeltaE_EvaP[er][0][0] << endl;
+	for (int stp=0; stp<AnodeStps; stp++)
+	  for (int col=0; col<AnodeCols+1; col++) 
+	    TraceEP[er][col]->SetPoint(stp, stp, DeltaE_EvaP[er][stp][col]);
 	EvaP[er]->GetX(tf,xf,yf,zf);
 	TrackEvaP[er]->SetOrigin(xi,yi,zi);
 	TrackEvaP[er]->SetVector(xf-xi,yf-yi,zf-zi);
+
 	// evaporation residue (heavy particle)
 	EvaR[er]->GetX(ti,xi,yi,zi);
-	//	DeltaE_EvaR[er] = PropagateParticle(EvaR[er], evt, MaxTime, UserStep);
 	PropagateParticle(EvaR[er], evt, MaxTime, UserStep, DeltaE_EvaR[er]);
-	cout << "********** DeltaE_res = "<< DeltaE_EvaR[er][0][0] << endl;
+	for (int stp=0; stp<AnodeStps; stp++)
+	  for (int col=0; col<AnodeCols+1; col++) 
+	    TraceER[er][col]->SetPoint(stp, stp, DeltaE_EvaR[er][stp][col]);
 	EvaR[er]->GetX(tf,xf,yf,zf);
 	TrackEvaR[er]->SetOrigin(xi,yi,zi);
 	TrackEvaR[er]->SetVector(xf-xi,yf-yi,zf-zi);
@@ -2053,12 +2114,14 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
     }
     else {
       Beam->Copy(BeamInit);
-      //      PropagateParticle(Beam, Kb_after_window, MaxTime, UserStep);
-      PropagateParticle(Beam, Kb_after_window, MaxTime, UserStep, DeltaEB); 
+      PropagateParticle(Beam, Kb_after_window, MaxTime, UserStep, DeltaEB);
+      for (int stp=0; stp<AnodeStps; stp++)
+	for (int col=0; col<AnodeCols+1; col++) 
+	  TraceB[col]->SetPoint(stp, stp, DeltaEB[stp][col]);
       cout << "Warninig: reaction energetically not allowed for event " << evt 
 	   << " (Kbr= " << Kbr << " MeV)." << endl;
     }
-
+    
     // 7. Compute detector response (i.e. DE for beam + light + heavy)
     // Clone the particle trajectories
     ComputeDetectorResponse(evt, StpID, UpdateVis);
@@ -2161,7 +2224,7 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
   PropagateParticle(BeamCopy, Kb_after_window, MaxTime, UserStep, DeltaEB_ave);
   for (int stp=0; stp<AnodeStps; stp++)
     for (int col=0; col<AnodeCols+1; col++) 
-      TraceB[col]->SetPoint(stp, stp, DeltaEB_ave[stp][col]);
+      TraceUB[col]->SetPoint(stp, stp, DeltaEB_ave[stp][col]);
   //  PrintCompoundEexc(Kb_after_window, DeltaEB_ave);
   
   //-------------------------------------------------------------------------------
@@ -2324,43 +2387,47 @@ void MUSIC_Simulator::UpdateVisuals(int evt, double Kbr, double zr, double TOF, 
   // 2D stuff
   if (PrintLevel>0)
     cout << "2D stuff..." << endl;
-  // Traces of particles' energy loss and total.
-  TraceCan->cd(1);
-  // Legend
-  if (LegPart->GetNRows()==0) {
-    LegPart->AddEntry(Trace[AnodeCols], "All particles", "l");
-  }
-  LegPart->Draw();
 
-
-  LabelKine->Draw();
-
-  // Draw traces
-  if (PrintLevel>0)
-    cout << "Drawing traces ..." << endl;
-
-  // Traces of energy loss in columns as a function of the strip
-  // number.
-  // TraceCan->cd(2);
 #if 1
-  TraceB[AnodeCols]->Draw("l same");
+  // Traces of energy loss in columns as a function of the strip
+  // number (detector response).
+  TraceCan->cd(1);
+  LabelKine->Draw();          // Leged with reaction kinematics
+  TraceUB[AnodeCols]->Draw("l same");
   for (int col=0; col<AnodeCols; col++)
     Trace[col]->Draw("l same");
   Trace[AnodeCols]->Draw("*l same");
-  // Legend
   if (LegCol->GetNRows()==0) {
     LegCol->AddEntry(Trace[AnodeCols],"All columns","l");
     for (int col=0; col<AnodeCols; col++)
       LegCol->AddEntry(Trace[col], Form("Column %d", col),"l");
-    // TraceCan->cd(3);
-    // LegCol->Draw();
-    TraceCan->cd(2);      
+    LegCol->Draw();
   }
-  LegCol->Draw();
+
+  // Traces of particles' energy loss as a function of the strip
+  // number
+  TraceCan->cd(2);  
+  TraceUB[AnodeCols]->Draw("l same");
+  TraceB[AnodeCols]->Draw("l same");
+  for (int er=0; er<CurEva; er++) {
+    TraceER[er][AnodeCols]->Draw("l same");
+    TraceEP[er][AnodeCols]->Draw("l same");
+  }
+  Trace[AnodeCols]->Draw("*l same");  // total detector response
+  if (LegPart->GetNRows()==0) {
+    LegPart->AddEntry(Trace[AnodeCols], "All particles", "l");
+    LegPart->AddEntry(TraceB[AnodeCols], "beam", "l");
+    for (int er=0; er<CurEva; er++) {
+      LegPart->AddEntry(TraceEP[er][AnodeCols], EvaP[er]->Name.c_str(), "l");
+      LegPart->AddEntry(TraceER[er][AnodeCols], EvaR[er]->Name.c_str(), "l");
+    }
+  }
+  LegPart->Draw();
+
 #endif
 
-  // Draw multiplicity 
-  TraceCan->cd(2);
+  // Multiplicity 
+  TraceCan->cd(3);
   TraceMult->GetYaxis()->SetRangeUser(0,AnodeCols+1);
   TraceMult->Draw("HIST");
 

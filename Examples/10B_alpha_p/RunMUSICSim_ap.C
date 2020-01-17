@@ -49,9 +49,9 @@ void RunMUSICSim_ap()
   double Kb = 6.7;    // MeV - Energy of the beam after the Ti window and Al degrader
   int strip = 2;      // Strip where reaction takes place
   float Eres = 0.01;  // MeV - Strip energy resolution (larger values increase signal randomness)
-  int NEvents = 500;   // Number of simulated events
-  int Wait = 0;       // 1 - canvas waits for user's double click, 0 - no wait
-  int Update = 0;     // 1 - update visuals for every event, 0 - don't
+  int NEvents = 10;   // Number of simulated events
+  int Wait = 1;       // 1 - canvas waits for user's double click, 0 - no wait
+  int Update = 1;     // 1 - update visuals for every event, 0 - don't
   double MaxTime = 2000;     // ns - max time for an event
   double SimStep = 0.001;    // cm - simulation steps size
   int Method = 0;     // Select the simulation method: 0 - Simulate, 1 - GenerateTraceDatabase

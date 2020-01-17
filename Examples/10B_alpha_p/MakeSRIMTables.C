@@ -6,7 +6,10 @@
 // Created by: Daniel Santiago-Gonzalez
 // Date: Dec 2018
 /////////////////////////////////////////////////////////////////////////////
+#include <iostream>
 #include <unistd.h>  // needed for getcwd()
+
+using namespace std;
 
 void MakeSRIMTables()
 {
@@ -33,7 +36,11 @@ void MakeSRIMTables()
 
   //
   // Target gas related stuff
+<<<<<<< Updated upstream
   float GasP = 100; // Torr
+=======
+  float GasP = 200; // Torr
+>>>>>>> Stashed changes
   float GasT = 293; // K
   int GasIndex = 3;
   // You have to use the same index numbers as in the SRIM_Table_Maker class.

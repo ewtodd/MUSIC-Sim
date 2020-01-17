@@ -149,12 +149,12 @@ private:
   TH2F* HCT;
   TH2F* HCTB;
   TH2F* HPT;
-  TGraph** Trace;
-  TGraph*** TraceH;
-  TGraph*** TraceD1;
-  TGraph*** TraceD2;
-  TGraph*** TraceL;
-  TGraph** TraceB;
+  TGraph** Trace;      // Detector trece
+  TGraph** TraceUB;    // Unreacted beam trace
+  TGraph** TraceB;     // Beam trace
+  TGraph*** TraceER;   // Evaporation residue traces
+  TGraph*** TraceEP;   // Evaporated particle traces
+
   TH1F* TraceMult;
   int NTraces;
 
