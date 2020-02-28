@@ -25,15 +25,15 @@ void MakeSRIMTables()
   // Particles for which the Stopping Power tables will be generated
   const int NumParticles = 6;
   string particle[NumParticles];
-  particle[0] = "100Mo";
+  particle[0] = "86Kr";
   particle[1] = "1H"; 
   particle[2] = "4He";
-  particle[3] = "103Tc";
-  particle[4] = "103Ru";
-  particle[5] = "102Ru";
+  particle[3] = "89Sr";
+  particle[4] = "88Sr";
+  particle[5] = "89Rb";
   //
   // Target gas related stuff
-  float GasP = 760; // Torr
+  float GasP = 600; // Torr
   float GasT = 293; // K
   int GasIndex = 3;
   // You have to use the same index numbers as in the SRIM_Table_Maker class.
