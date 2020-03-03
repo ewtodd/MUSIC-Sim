@@ -31,7 +31,7 @@ void MakeSRIMTables()
   particle[3] = "62Ni";
   particle[4] = "61Ni";
   particle[5] = "62Co";
-  particle[6] = "59Cu";
+  particle[6] = "59Co";
   //
   // Target gas related stuff
   float GasP = 600; // Torr

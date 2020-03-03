@@ -17,15 +17,15 @@ void RunMUSICSim()
 
   //=======================================================================
   // CONTROL PANEL (units: dist=cm, energy=MeV, angle=deg)
-  string reaction = "(a,a)";  // Options (a,a), (a,n), (a,2n), (a,p)
+  string reaction = "(a,n)";  // Options (a,a), (a,n), (a,2n), (a,p)
   int pressure = 600; // Torr
   string AnodeGeom = "AnodeGeometry";
   int ELossBins = 300;
   float MaxELoss = 25;
   SRIMdir += "/SRIM_files/";
   // beam
-  string beam = "59Cu";
-  string SRIMbeam = SRIMdir + "59Cu_in_GasIndex3_600Torr_293K.srim";
+  string beam = "59Fe";
+  string SRIMbeam = SRIMdir + "59Fe_in_GasIndex3_600Torr_293K.srim";
   // target (no SRIM file, assuming it does not propagate)
   string target = "4He";
   // compound nucleus (no SRIM file, assuming it does not propagate)
@@ -82,8 +82,8 @@ void RunMUSICSim()
   }
 
 
-  double Kb = 203;   // MeV - Energy of the beam after the Ti window and Al degrader
-  int strip = 18;     // Strip where reaction takes place
+  double Kb = 204;    // MeV - Energy of the beam after the Ti window and Al degrader
+  int strip = 4;     // Strip where reaction takes place
   float Eres = 0.005;  // MeV - Strip energy resolution (larger values increase signal randomness)
   int NEvents = 300;   // Number of simulated events (recommendation: keep it <1000)
   int Wait = 0;       // 1 - canvas waits for user's double click, 0 - no wait
@@ -91,8 +91,8 @@ void RunMUSICSim()
   double MaxTime = 1000;   // ns - max time for an event
   double SimStep = 0.001;     // cm - simulation steps size
   int Method = 0;    // Select the simulation method: 0 - Simulate, 1 - GenerateTraceDatabase
-  //  string FileName = Form("Traces_Stp%d_%s.root", strip, reaction.c_str());
-  string FileName = Form("Traces_59Cu_beam.root");
+  string FileName = Form("Traces_Stp%d_%sMeV.root", strip, reaction.c_str());
+  //  string FileName = Form("Traces_59Fe_beam_230MeV_test.root");
   string FileOpt = "recreate"; // recreate or update
 
   // The following control variables only apply for GenerateTraceDatabase (Method=1)
