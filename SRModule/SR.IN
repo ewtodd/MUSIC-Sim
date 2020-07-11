@@ -1,0 +1,15 @@
+---Stopping/Range Input Data (Number-format: Period = Decimal Point)
+---Output File Name
+"/home/dsg/Research/MUSIC/sim/Examples/88Sr_alpha/SRIM_files/91Y_in_GasIndex3_600Torr_293K.srim"
+---Ion(Z), Ion Mass(u)
+39   90.9073
+---Target Data: (Solid=0,Gas=1), Density(g/cm3), Compound Corr.
+1    0.000131443    1
+---Number of Target Elements
+ 1
+---Target Elements: (Z), Target name, Stoich, Target Mass(u)
+2   "Helium"                 1             4.003
+---Output Stopping Units (1-8)
+ 3
+---Ion Energy : E-Min(keV), E-Max(keV)
+ 0.5    9.09073e+06
