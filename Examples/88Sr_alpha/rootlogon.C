@@ -9,11 +9,11 @@
   // Load the necessary libraries for the script to run.
   /////////////////////////////////////////////////////////////////////////////
   gStyle->SetOptStat("");  
-  gSystem->Load("../../../physics-tools/EnergyLoss.so"); 
-  gSystem->Load("../../../physics-tools/FourVector.so"); 
-  gSystem->Load("../../../physics-tools/Particle.so"); 
-  gSystem->Load("../../../physics-tools/NuclideFinder_cpp.so"); 
-  // Special lib
-  gSystem->Load("../../../physics-tools/SRIM_Table_Maker_cpp.so");
-  gSystem->Load("../../MUSIC_Simulator_cpp.so");
+  gROOT->ProcessLine(".L ../../../physics-tools/EnergyLoss.cpp+"); 
+  gROOT->ProcessLine(".L ../../../physics-tools/FourVector.cpp+"); 
+  gROOT->ProcessLine(".L ../../../physics-tools/Particle.cpp+"); 
+  gROOT->ProcessLine(".L ../../../physics-tools/NuclideFinder.cpp+"); 
+  gROOT->ProcessLine(".L ../../../physics-tools/SRIM_Table_Maker.cpp+");
+  gROOT->ProcessLine(".L ../../MUSIC_Simulator.cpp+");
+  
 }
