@@ -74,6 +74,10 @@ MUSIC_Simulator::MUSIC_Simulator()
     yfl[er] = 0;
     zfl[er] = -1000;
   }
+  xr = yr = 0;
+  zr = -1000;
+  xfe = yfe = 0;
+  zfe = -1000;
 
   // Nuclide finder object
   NuF = new NuclideFinder();
@@ -717,14 +721,14 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
 	  // 2. Within the selected strip randomly select the position
 	  // at which the beam particle interacts with the target and
 	  // calculate the kinetic energy at the reaction point
-	  double zr = Rdm->Uniform(MinZ, MaxZ);
-	  double Kbr = Beam->GetFinalEnergy(0, Kb_after_window, zr, 1E-3/*cm*/);
+	  this->zr = Rdm->Uniform(MinZ, MaxZ);
+	  double Kbr = Beam->GetFinalEnergy(0, Kb_after_window, this->zr, 1E-3/*cm*/);
 	  double TOF = Beam->GetTimeOfFlight(0);
 	  if (PrintLevel>0)
-	    cout << "Kbr = " << Kbr << "  zr = " << zr << "  tof = " << TOF << endl;
+	    cout << "Kbr = " << Kbr << "  zr = " << this->zr << "  tof = " << TOF << endl;
 	  
 	  // 3. Set the kinematics of all particles at the reaction point
-	  int ReacAllowed = SetReactionKinematics(Kbr, zr, TOF, theta, phi);
+	  int ReacAllowed = SetReactionKinematics(Kbr, this->zr, TOF, theta, phi);
 	  // Check conservation of 4-momentum
 	  if (PrintLevel>0) {
 	    cout << "Conservation of 4-momentum at reaction point (zr)" 
@@ -772,40 +776,45 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
 #endif	  
 
 	  if (ReacAllowed) {
-	  // 4. Propagate the beam particle (backwards in time) from the
-	  // reaction point to the entrance of MUSIC
-	  Beam->GetX(tf,xf,yf,zf);
-	  //	  DeltaEB = PropagateParticle(Beam, evt, MaxTime, -UserStep);
-	  PropagateParticle(Beam, evt, MaxTime, -UserStep, DeltaEB);
-	  Beam->GetX(ti,xi,yi,zi);                      // <- This is not a mistake
-	  TrackBeam->SetOrigin(xi,yi,zi);
-	  TrackBeam->SetVector(xf-xi,yf-yi,zf-zi);
+	    // 4. Propagate the beam particle (backwards in time) from the
+	    // reaction point to the entrance of MUSIC
+	    Beam->GetX(tf,xf,yf,zf);
+	    //	  DeltaEB = PropagateParticle(Beam, evt, MaxTime, -UserStep);
+	    PropagateParticle(Beam, evt, MaxTime, -UserStep, DeltaEB);
+	    Beam->GetX(ti,xi,yi,zi);                      // <- This is not a mistake
+	    TrackBeam->SetOrigin(xi,yi,zi);
+	    TrackBeam->SetVector(xf-xi,yf-yi,zf-zi);
 	  
-	  // 5-6. Propagate outgoing particles (evaporation residues)
-	  for (int er=0; er<CurEva; er++) {
-	  // evaporated (light) particle (p,n,4He)
-	  EvaP[er]->GetX(ti,xi,yi,zi);
-	  //	  DeltaE_EvaP[er] = PropagateParticle(EvaP[er], evt, MaxTime, UserStep);
-	  PropagateParticle(EvaP[er], evt, MaxTime, UserStep, DeltaE_EvaP[er]);
-	  EvaP[er]->GetX(tf,xf,yf,zf);
-	  TrackEvaP[er]->SetOrigin(xi,yi,zi);
-	  TrackEvaP[er]->SetVector(xf-xi,yf-yi,zf-zi);
-	  // evaporation residue (heavy particle)
-	  EvaR[er]->GetX(ti,xi,yi,zi);
-	  //	  DeltaE_EvaR[er] = PropagateParticle(EvaR[er], evt, MaxTime, UserStep);
-	  PropagateParticle(EvaR[er], evt, MaxTime, UserStep, DeltaE_EvaR[er]);
-	  EvaR[er]->GetX(tf,xf,yf,zf);
-	  TrackEvaR[er]->SetOrigin(xi,yi,zi);
-	  TrackEvaR[er]->SetVector(xf-xi,yf-yi,zf-zi);
-	}
-	}
+	    // 5-6. Propagate outgoing particles (evaporation residues)
+	    for (int er=0; er<CurEva; er++) {
+	      // evaporated (light) particle (p,n,4He)
+	      EvaP[er]->GetX(ti,xi,yi,zi);
+	      //	  DeltaE_EvaP[er] = PropagateParticle(EvaP[er], evt, MaxTime, UserStep);
+	      PropagateParticle(EvaP[er], evt, MaxTime, UserStep, DeltaE_EvaP[er]);
+	      EvaP[er]->GetX(tf,xf,yf,zf);
+	      TrackEvaP[er]->SetOrigin(xi,yi,zi);
+	      TrackEvaP[er]->SetVector(xf-xi,yf-yi,zf-zi);
+	      // evaporation residue (heavy particle)
+	      EvaR[er]->GetX(ti,xi,yi,zi);
+	      //	  DeltaE_EvaR[er] = PropagateParticle(EvaR[er], evt, MaxTime, UserStep);
+	      PropagateParticle(EvaR[er], evt, MaxTime, UserStep, DeltaE_EvaR[er]);
+	      EvaR[er]->GetX(tf,xf,yf,zf);
+	      if (!EvaR[er]->DoNotPropagate) {
+		xfe = xf;
+		yfe = yf;
+		zfe = zf;
+	      }	      
+	      TrackEvaR[er]->SetOrigin(xi,yi,zi);
+	      TrackEvaR[er]->SetVector(xf-xi,yf-yi,zf-zi);
+	    }
+	  }
 	  else {
-	  Beam->Copy(BeamInit);
-	  //	  PropagateParticle(Beam, Kb_after_window, MaxTime, UserStep); 
-	  PropagateParticle(Beam, Kb_after_window, MaxTime, UserStep, DeltaEB);
-	  cout << "Warninig: reaction energetically not allowed for event " << evt 
-	       << " (Kbr= " << Kbr << " MeV)." << endl;
-	}
+	    Beam->Copy(BeamInit);
+	    //	  PropagateParticle(Beam, Kb_after_window, MaxTime, UserStep); 
+	    PropagateParticle(Beam, Kb_after_window, MaxTime, UserStep, DeltaEB);
+	    cout << "Warninig: reaction energetically not allowed for event " << evt 
+		 << " (Kbr= " << Kbr << " MeV)." << endl;
+	  }
 	  
 	  // 7. Compute detector response (i.e. DE for beam + light + heavy)
 	  // Clone the particle trajectories
@@ -814,7 +823,7 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
 	  
 	  // 8. Display trace and particle trajecories   
 	  if (UpdateVis) 
-	    UpdateVisuals(evt, Kbr, zr, TOF, Wait);
+	    UpdateVisuals(evt, Kbr, this->zr, TOF, Wait);
 	  
 	  // Simple progress monitor
 	  EvtsProcessed++;
@@ -2120,14 +2129,14 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
     // 2. Within the selected strip randomly select the position at
     // which the beam particle interacts with the target and calculate
     // the kinetic energy at the reaction point
-    double zr = Rdm->Uniform(MinZ, MaxZ);
-    double Kbr = Beam->GetFinalEnergy(0, Kb_after_window, zr, 1E-3/*cm*/);
+    this->zr = Rdm->Uniform(MinZ, MaxZ);
+    double Kbr = Beam->GetFinalEnergy(0, Kb_after_window, this->zr, 1E-3/*cm*/);
     double TOF = Beam->GetTimeOfFlight(0);
     if (PrintLevel>0)
-      cout << "Kbr = " << Kbr << "  zr = " << zr << "  tof = " << TOF << endl;
+      cout << "Kbr = " << Kbr << "  zr = " << this->zr << "  tof = " << TOF << endl;
 
     // 3. Set the kinematics of all particles at the reaction point
-    int ReacAllowed = SetReactionKinematics(Kbr, zr, TOF);
+    int ReacAllowed = SetReactionKinematics(Kbr, this->zr, TOF);
     // Check conservation of 4-momentum
     if (PrintLevel>0) {
       cout << "Conservation of 4-momentum at reaction point (zr)" 
@@ -2180,6 +2189,11 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
 	  for (int col=0; col<AnodeCols+1; col++) 
 	    TraceER[er][col]->SetPoint(stp, stp, DeltaE_EvaR[er][stp][col]);
 	EvaR[er]->GetX(tf,xf,yf,zf);
+	if (!EvaR[er]->DoNotPropagate) {
+	  xfe = xf;
+	  yfe = yf;
+	  zfe = zf;
+	}
 	TrackEvaR[er]->SetOrigin(xi,yi,zi);
 	TrackEvaR[er]->SetVector(xf-xi,yf-yi,zf-zi);
       }
@@ -2203,7 +2217,7 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
 
     // 8. Display trace and particle trajecories
     if (UpdateVis)
-      UpdateVisuals(evt, Kbr, zr, TOF, Wait);
+      UpdateVisuals(evt, Kbr, this->zr, TOF, Wait);
     
     // Simple progress monitor
     if (NEvents>99) {
@@ -2355,14 +2369,14 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
       // 2. Within the selected strip randomly select the position at
       // which the beam particle interacts with the target and calculate
       // the kinetic energy at the reaction point
-      double zr = Rdm->Uniform(MinZ, MaxZ);
-      double Kbr = Beam->GetFinalEnergy(0, Kb_after_window, zr, 1E-3);
+      this->zr = Rdm->Uniform(MinZ, MaxZ);
+      double Kbr = Beam->GetFinalEnergy(0, Kb_after_window, this->zr, 1E-3);
       double TOF = Beam->GetTimeOfFlight(0);
       if (PrintLevel>0)
-	cout << "Kbr = " << Kbr << "  zr = " << zr << "  tof = " << TOF << endl;
+	cout << "Kbr = " << Kbr << "  zr = " << this->zr << "  tof = " << TOF << endl;
       
       // 3. Set the kinematics of all particles at the reaction point
-      int ReacAllowed = SetReactionKinematics(Kbr, zr, TOF, theta, phi);
+      int ReacAllowed = SetReactionKinematics(Kbr, this->zr, TOF, theta, phi);
       if (ReacAllowed==0) {
 	cout << "Warninig: reaction energetically not allowed for event " << evt 
 	     << " (Kbr= " << Kbr << " MeV)." << endl;
@@ -2390,7 +2404,7 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
       SimTree->Fill();
       
       // 8. Display trace and particle trajecories   
-      UpdateVisuals(evt, Kbr, zr, TOF, Wait);
+      UpdateVisuals(evt, Kbr, this->zr, TOF, Wait);
       
       NTraces++;
       evt++;
