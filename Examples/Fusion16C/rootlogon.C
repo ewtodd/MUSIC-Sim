@@ -14,6 +14,9 @@
   gSystem->Load("../../../physics-tools/Particle.so"); 
   gSystem->Load("../../../physics-tools/NuclideFinder_cpp.so"); 
   // Special lib
-  gSystem->Load("../../../physics-tools/SRIM_Table_Maker_cpp.so");
-  gSystem->Load("../../MUSIC_Simulator_cpp.so");
+  // gSystem->Load("../../../physics-tools/SRIM_Table_Maker_cpp.so");
+  //  gSystem->Load("../../MUSIC_Simulator_cpp.so");
+  gROOT->ProcessLine(".L ../../MUSIC_Simulator.cpp+");
+
+  cout << "rootlogon.C loaded" << endl;
 }

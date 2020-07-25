@@ -3,9 +3,9 @@
 // Written by Daniel Santiago-Gonzalez                                          |
 // ver 2.0 (2016/4)                                                             |
 // To get the latest version type:                                              |
-// git clone https://dasago@bitbucket.org/music_anl/music_simulator.git         |
+//  git clone https://gitlab.phy.anl.gov/music/sim.git                          |
 //                                                                              |
-// Compile by typing: root -l MakeAll.C                                         |
+// Compile by typing: root MakeAll.C                                            |
 //                                                                              |
 // May need libroot-math-physics-dev. Install using synaptic package manager.   |
 // http://packages.ubuntu.com/trusty/i386/libroot-math-physics-dev/filelist     |
