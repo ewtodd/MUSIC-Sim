@@ -99,6 +99,7 @@ private:
   void ComputeDetectorResponse(int event, int reacStp, int UpdateVis);
   void CreateTracesAndTrajectories(int NEvents);
   void DrawMUSIC(TEveManager* gEve, short Transparency /*From 0 to 100*/);
+  TTree* InitTree(TFile* ROOTfile, string FileOpt);
   void PrintCompoundEexc(double Kb, double** DeltaEB);
   void PrintEnergetics(double Kb, double** DeltaEB);
   int PropagateParticle(Particle* PO, int Event, double MaxTime, double UserStep, double ** DE);
@@ -223,7 +224,15 @@ private:
   float* xfl;
   float* yfl;
   float* zfl;
+  float xr;
+  float yr;
+  float zr;
+  float xfe;
+  float yfe;
+  float zfe;
 
+
+  
   // Log file
   ofstream Log;
 

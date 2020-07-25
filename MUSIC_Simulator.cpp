@@ -16,7 +16,7 @@ MUSIC_Simulator::MUSIC_Simulator()
   cout << "| Written by Daniel Santiago-Gonzalez                                          |" << endl;
   cout << "| ver 2.0 (2016/4)                                                             |" << endl;
   cout << "| To get the latest version visit:                                             |" << endl;
-  cout << "| https://gitlab.phy.anl.gov/dasago/music-simulator                            |" << endl;
+  cout << "| https://gitlab.phy.anl.gov/music/sim.git                                     |" << endl;
   cout << "================================================================================" << endl;
 
   Name = "MUSIC_Simulator";
@@ -606,26 +606,7 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
   TFile* TDB = new TFile(FileName.c_str(), "recreate");
 
   // Tree similar to the one used for experimental data
-  SimTree = new TTree("simt","Simulated MUSIC data");
-  SimTree->Branch("de_l",  de_l,     Form("de_l[%d]/F",ExpAnodeStps));
-  SimTree->Branch("de_r",  de_r,     Form("de_r[%d]/F",ExpAnodeStps));
-  SimTree->Branch("seg",   seg,      Form("seg[%d]/I",ExpAnodeStps));
-  SimTree->Branch("stp0",  &strip0,  "stp0/F");
-  SimTree->Branch("stp17", &strip17, "stp17/F");
-  SimTree->Branch("cath",  &cathode, "cath/F");
-  // The following branches are for physical quantities that at the
-  // moment can only be obtained from the simulation
-  SimTree->Branch("reacStp",   &reacStp,   "reacStp/I");
-  // SimTree->Branch("Kb", &Kb, "Kb/F");
-  // SimTree->Branch("Kl", &Kl, "Kl/F");
-  // SimTree->Branch("Kh", &Kh, "Kh/F");
-  // SimTree->Branch("theta_CM", &theta_CM, "theta_CM/F");
-  // SimTree->Branch("theta_l", &theta_l, "theta_l/F");
-  // SimTree->Branch("theta_h", &theta_h, "theta_h/F");
-  // SimTree->Branch("phi_l",   &phi_l,   "phi_l/F");
-  // SimTree->Branch("phi_h",   &phi_l,   "phi_h/F");
-  if (PrintLevel>0)
-    SimTree->Print();
+  SimTree = InitTree(TDB, "recreate");
 
   // Angles in radians
   double theta = 0;
@@ -863,6 +844,85 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
 #endif
   return;
 }
+
+
+///////////////////////////////////////////////////////////////////////////////////
+// Initialize the TTree (SimTree) similar to the one used for experimental data.
+///////////////////////////////////////////////////////////////////////////////////
+TTree* MUSIC_Simulator::InitTree(TFile* ROOTfile, string FileOpt)
+{
+  TTree* tree;
+  // Tree similar to the one used for experimental data
+  if (ROOTfile && (FileOpt=="update" || FileOpt=="UPDATE")) {
+    tree = (TTree*)ROOTfile->Get("simt");
+    tree->SetBranchAddress("de_l",  de_l);
+    tree->SetBranchAddress("de_r",  de_r);
+    tree->SetBranchAddress("seg",   seg);
+    tree->SetBranchAddress("stp0",  &strip0);
+    tree->SetBranchAddress("stp17", &strip17);
+    tree->SetBranchAddress("cath",  &cathode);
+    // The following branches are for physical quantities that at the
+    // moment can only be obtained from the simulation
+    tree->SetBranchAddress("reacStp",   &reacStp);
+    tree->SetBranchAddress("Kb", &Kb);
+    tree->SetBranchAddress("Kl", Kl);
+    tree->SetBranchAddress("Kh", Kh);
+    tree->SetBranchAddress("theta_CM", theta_CM);
+    tree->SetBranchAddress("theta_l",  theta_l);
+    tree->SetBranchAddress("theta_h",  theta_h);
+    tree->SetBranchAddress("phi_l",    phi_l);
+    tree->SetBranchAddress("phi_h",    phi_h);
+    // Final coordinates of the light evaporated particles in the reaction (arrays)
+    tree->SetBranchAddress("xfl",      xfl);
+    tree->SetBranchAddress("yfl",      yfl);
+    tree->SetBranchAddress("zfl",      zfl);
+    // Reaction point coordinates
+    tree->SetBranchAddress("xr", &xr);
+    tree->SetBranchAddress("yr", &yr);
+    tree->SetBranchAddress("zr", &zr);
+    // Final coordinates of the lightest evaporation residue in the reaction
+    tree->SetBranchAddress("xfe", &xfe);
+    tree->SetBranchAddress("yfe", &yfe);
+    tree->SetBranchAddress("zfe", &zfe);
+  }
+  else {
+    tree = new TTree("simt","Simulated MUSIC data");
+    tree->Branch("de_l",  de_l,     Form("de_l[%d]/F",ExpAnodeStps));
+    tree->Branch("de_r",  de_r,     Form("de_r[%d]/F",ExpAnodeStps));
+    tree->Branch("seg",   seg,      Form("seg[%d]/I",ExpAnodeStps));
+    tree->Branch("stp0",  &strip0,  "stp0/F");
+    tree->Branch("stp17", &strip17, "stp17/F");
+    tree->Branch("cath",  &cathode, "cath/F");
+    // The following branches are for physical quantities that at the
+    // moment can only be obtained from the simulation
+    tree->Branch("reacStp",   &reacStp,   "reacStp/I");
+    tree->Branch("Kb", &Kb, "Kb/F");
+    tree->Branch("Kl", Kl,  Form("Kl[%d]/F",MaxEva));
+    tree->Branch("Kh", Kh,  Form("Kh[%d]/F",MaxEva));
+    tree->Branch("theta_CM", theta_CM, Form("theta_CM[%d]/F",MaxEva));
+    tree->Branch("theta_l",  theta_l,  Form("theta_l[%d]/F",MaxEva));
+    tree->Branch("theta_h",  theta_h,  Form("theta_h[%d]/F",MaxEva));
+    tree->Branch("phi_l",    phi_l,    Form("phi_l[%d]/F",MaxEva));
+    tree->Branch("phi_h",    phi_h,    Form("phi_h[%d]/F",MaxEva));
+    // Final coordinates of the light evaporated particles in the reaction (arrays)
+    tree->Branch("xfl",      xfl,      Form("xfl[%d]/F",MaxEva));
+    tree->Branch("yfl",      yfl,      Form("yfl[%d]/F",MaxEva));
+    tree->Branch("zfl",      zfl,      Form("zfl[%d]/F",MaxEva));
+    // Reaction point coordinates
+    tree->Branch("xr", &xr, "xr/F");
+    tree->Branch("yr", &yr, "yr/F");
+    tree->Branch("zr", &zr, "zr/F");
+    // Final coordinates of the lightest evaporation residue in the reaction
+    tree->Branch("xfe", &xfe, "xfe/F");
+    tree->Branch("yfe", &yfe, "yfe/F");
+    tree->Branch("zfe", &zfe, "zfe/F");
+  }
+  if (PrintLevel>0)
+    tree->Print();
+  return tree;
+}
+
+
 
 ///////////////////////////////////////////////////////////////////////////////////
 // 
@@ -1621,22 +1681,22 @@ void MUSIC_Simulator::SetPrintLevel(int Level/*0-2*/)
 
 
 ///////////////////////////////////////////////////////////////////////////////////
-//   _____      _     _____                 _   _              
-//  / ____|    | |   |  __ \               | | (_)             
-// | (___   ___| |_  | |__) |___  __ _  ___| |_ _  ___  _ __   
-//  \___ \ / _ \ __| |  _  // _ \/ _` |/ __| __| |/ _ \| '_ \  
-//  ____) |  __/ |_  | | \ \  __/ (_| | (__| |_| | (_) | | | | 
-// |_____/ \___|\__| |_|  \_\___|\__,_|\___|\__|_|\___/|_| |_| 
-//  _  ___                            _   _          
-// | |/ (_)                          | | (_)         
-// | ' / _ _ __   ___ _ __ ___   __ _| |_ _  ___ ___ 
-// |  < | | '_ \ / _ \ '_ ` _ \ / _` | __| |/ __/ __|
-// | . \| | | | |  __/ | | | | | (_| | |_| | (__\__ \
-// |_|\_\_|_| |_|\___|_| |_| |_|\__,_|\__|_|\___|___/
-//
-// Private method, to be used in an event loop. Establish the kinematics of the 
-// particles at the reaction point. If theta_CM and phi_CM are both -1 (default 
-// values) then their values are assigned randomly.
+//   _____      _     _____                 _   _                                //
+//  / ____|    | |   |  __ \               | | (_)                               //
+// | (___   ___| |_  | |__) |___  __ _  ___| |_ _  ___  _ __                     //
+//  \___ \ / _ \ __| |  _  // _ \/ _` |/ __| __| |/ _ \| '_ \                    //
+//  ____) |  __/ |_  | | \ \  __/ (_| | (__| |_| | (_) | | | |                   //
+// |_____/ \___|\__| |_|  \_\___|\__,_|\___|\__|_|\___/|_| |_|                   //
+//  _  ___                            _   _                                      //
+// | |/ (_)                          | | (_)                                     //
+// | ' / _ _ __   ___ _ __ ___   __ _| |_ _  ___ ___                             //
+// |  < | | '_ \ / _ \ '_ ` _ \ / _` | __| |/ __/ __|                            //
+// | . \| | | | |  __/ | | | | | (_| | |_| | (__\__ \                            //
+// |_|\_\_|_| |_|\___|_| |_| |_|\__,_|\__|_|\___|___/                            //
+//                                                                               //
+// Private method, to be used in an event loop. Establish the kinematics of the  //
+// particles at the reaction point. If theta_CM and phi_CM are both -1 (default  //
+// values) then their values are assigned randomly.                              //
 ///////////////////////////////////////////////////////////////////////////////////
 int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, double tof/*ns*/,
 					   double theta_CM, double phi_CM)
@@ -1942,57 +2002,9 @@ void MUSIC_Simulator::Simulate(int StpID, int NEvents, double MaxTime, double Us
   
   if (FileName!="")
     ROOTfile = new TFile(FileName.c_str(), FileOpt.c_str());
-  
+
   // Tree similar to the one used for experimental data
-  if (ROOTfile && (FileOpt=="update" || FileOpt=="UPDATE")) {
-    SimTree = (TTree*)ROOTfile->Get("simt");
-    SimTree->SetBranchAddress("de_l",  de_l);
-    SimTree->SetBranchAddress("de_r",  de_r);
-    SimTree->SetBranchAddress("seg",   seg);
-    SimTree->SetBranchAddress("stp0",  &strip0);
-    SimTree->SetBranchAddress("stp17", &strip17);
-    SimTree->SetBranchAddress("cath",  &cathode);
-    // The following branches are for physical quantities that at the
-    // moment can only be obtained from the simulation
-    SimTree->SetBranchAddress("reacStp",   &reacStp);
-    SimTree->SetBranchAddress("Kb", &Kb);
-    SimTree->SetBranchAddress("Kl", Kl);
-    SimTree->SetBranchAddress("Kh", Kh);
-    SimTree->SetBranchAddress("theta_CM", theta_CM);
-    SimTree->SetBranchAddress("theta_l",  theta_l);
-    SimTree->SetBranchAddress("theta_h",  theta_h);
-    SimTree->SetBranchAddress("phi_l",    phi_l);
-    SimTree->SetBranchAddress("phi_h",    phi_h);
-    SimTree->SetBranchAddress("xfl",      xfl);
-    SimTree->SetBranchAddress("yfl",      yfl);
-    SimTree->SetBranchAddress("zfl",      zfl);
-  }
-  else {
-    SimTree = new TTree("simt","Simulated MUSIC data");
-    SimTree->Branch("de_l",  de_l,     Form("de_l[%d]/F",ExpAnodeStps));
-    SimTree->Branch("de_r",  de_r,     Form("de_r[%d]/F",ExpAnodeStps));
-    SimTree->Branch("seg",   seg,      Form("seg[%d]/I",ExpAnodeStps));
-    SimTree->Branch("stp0",  &strip0,  "stp0/F");
-    SimTree->Branch("stp17", &strip17, "stp17/F");
-    SimTree->Branch("cath",  &cathode, "cath/F");
-    // The following branches are for physical quantities that at the
-    // moment can only be obtained from the simulation
-    SimTree->Branch("reacStp",   &reacStp,   "reacStp/I");
-    SimTree->Branch("Kb", &Kb, "Kb/F");
-    SimTree->Branch("Kl", Kl,  Form("Kl[%d]/F",MaxEva));
-    SimTree->Branch("Kh", Kh,  Form("Kh[%d]/F",MaxEva));
-    SimTree->Branch("theta_CM", theta_CM, Form("theta_CM[%d]/F",MaxEva));
-    SimTree->Branch("theta_l",  theta_l,  Form("theta_l[%d]/F",MaxEva));
-    SimTree->Branch("theta_h",  theta_h,  Form("theta_h[%d]/F",MaxEva));
-    SimTree->Branch("phi_l",    phi_l,    Form("phi_l[%d]/F",MaxEva));
-    SimTree->Branch("phi_h",    phi_h,    Form("phi_h[%d]/F",MaxEva));
-    SimTree->Branch("xfl",      xfl,      Form("xfl[%d]/F",MaxEva));
-    SimTree->Branch("yfl",      yfl,      Form("yfl[%d]/F",MaxEva));
-    SimTree->Branch("zfl",      zfl,      Form("zfl[%d]/F",MaxEva));
-  }
-  if (PrintLevel>0)
-    SimTree->Print();
-  
+  SimTree = InitTree(ROOTfile, FileOpt);
 
   TDirectory* trace_dir = 0;
   if (ROOTfile) {
@@ -2237,28 +2249,11 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
     return;
   }
   
-  // Tree similar to the one used for experimental data
-  SimTree = new TTree("simt","Simulated MUSIC data");
-  SimTree->Branch("de_l",  de_l,     Form("de_l[%d]/F",ExpAnodeStps));
-  SimTree->Branch("de_r",  de_r,     Form("de_r[%d]/F",ExpAnodeStps));
-  SimTree->Branch("seg",   seg,      Form("seg[%d]/I",ExpAnodeStps));
-  SimTree->Branch("stp0",  &strip0,  "stp0/F");
-  SimTree->Branch("stp17", &strip17, "stp17/F");
-  SimTree->Branch("cath",  &cathode, "cath/F");
-  // The following branches are for physical quantities that at the
-  // moment can only be obtained from the simulation
-  SimTree->Branch("reacStp",   &reacStp,   "reacStp/I");
-  // SimTree->Branch("Kb", &Kb, "Kb/F");
-  // SimTree->Branch("Kl", &Kl, "Kl/F");
-  // SimTree->Branch("Kh", &Kh, "Kh/F");
-  // SimTree->Branch("theta_CM", &theta_CM, "theta_CM/F");
-  // SimTree->Branch("theta_l", &theta_l, "theta_l/F");
-  // SimTree->Branch("theta_h", &theta_h, "theta_h/F");
-  // SimTree->Branch("phi_l",   &phi_l,   "phi_l/F");
-  // SimTree->Branch("phi_h",   &phi_l,   "phi_h/F");
-  if (PrintLevel>0)
-    SimTree->Print();
+  // ROOT file where the traces will be saved
+  TFile* ROOTfile = new TFile("sim.root", "recreate");
   
+  // Tree similar to the one used for experimental data
+  SimTree = InitTree(ROOTfile,"recreate");  
 
   // Angles in radians
   double theta = 0;
@@ -2392,6 +2387,7 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
       // 7. Compute detector response (i.e. DE for beam + light + heavy)
       // Clone the particle trajectories
       ComputeDetectorResponse(evt, StpID, 1);
+      SimTree->Fill();
       
       // 8. Display trace and particle trajecories   
       UpdateVisuals(evt, Kbr, zr, TOF, Wait);
@@ -2399,6 +2395,12 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
       NTraces++;
       evt++;
     }
+  }
+
+  if (ROOTfile) {
+    ROOTfile->cd();
+    SimTree->Write("", TObject::kSingleKey);
+    ROOTfile->Close();
   }
   
   return;

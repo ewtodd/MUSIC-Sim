@@ -5,7 +5,7 @@
   mylib[0] = IncludePath + "EnergyLoss.so";
   mylib[1] = IncludePath + "FourVector.so";
   mylib[2] = IncludePath + "Particle.so";
-  mylib[3] = IncludePath + "NuclideFinder_cpp.so";
+  mylib[3] = IncludePath + "NuclideFinder.so";
   
   int LibStatus = 0;
   for (int l=0; l<numlibs; l++)
