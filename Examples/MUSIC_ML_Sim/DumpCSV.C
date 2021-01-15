@@ -38,32 +38,32 @@ void DumpCSV::Begin(TTree* tree)
 
   TString option = GetOption();
   cout << option << endl;
-  if (option=="1M")        mainentry = 1000000;
-  else if (option=="2M")   mainentry = 2000000;
-  else if (option=="3M")   mainentry = 3000000;
-  else if (option=="4M")   mainentry = 4000000;
-  else if (option=="5M")   mainentry = 5000000;
-  else if (option=="6M")   mainentry = 6000000;
-  else if (option=="7M")   mainentry = 7000000;
-  else if (option=="8M")   mainentry = 8000000;
-  else if (option=="9M")   mainentry = 9000000;
-  else if (option=="10M")  mainentry = 10000000;
-  else if (option=="11M")  mainentry = 11000000;
-  else if (option=="12M")  mainentry = 12000000;
-  else if (option=="13M")  mainentry = 13000000;
-  else if (option=="14M")  mainentry = 14000000;
-  else if (option=="15M")  mainentry = 15000000;
-  else if (option=="16M")  mainentry = 16000000;
-  else if (option=="17M")  mainentry = 17000000;
-  else if (option=="18M")  mainentry = 18000000;
-  else if (option=="19M")  mainentry = 19000000;
-  else if (option=="20M")  mainentry = 20000000;
+  if (option=="1M")        mainentry = 10000;
+  else if (option=="2M")   mainentry = 20000;
+  else if (option=="3M")   mainentry = 30000;
+  else if (option=="4M")   mainentry = 40000;
+  else if (option=="5M")   mainentry = 50000;
+  else if (option=="6M")   mainentry = 60000;
+  else if (option=="7M")   mainentry = 70000;
+  else if (option=="8M")   mainentry = 80000;
+  else if (option=="9M")   mainentry = 90000;
+  else if (option=="10M")  mainentry = 100000;
+  else if (option=="11M")  mainentry = 110000;
+  else if (option=="12M")  mainentry = 120000;
+  else if (option=="13M")  mainentry = 130000;
+  else if (option=="14M")  mainentry = 140000;
+  else if (option=="15M")  mainentry = 150000;
+  else if (option=="16M")  mainentry = 160000;
+  else if (option=="17M")  mainentry = 170000;
+  else if (option=="18M")  mainentry = 180000;
+  else if (option=="19M")  mainentry = 190000;
+  else if (option=="20M")  mainentry = 200000;
 
   TotalEntries = tree->GetEntries();
   cout << "Processing " << TotalEntries << " entries" << endl;
   StpWatch.Start();
   ProgressIndex = 0;
-  CSV.open("17F_alpha_p_sim.csv", std::ofstream::out | std::ofstream::app);
+  CSV.open("17F_alpha_p_sim_38.5MeV_420Torr_noise100keV.csv", std::ofstream::out | std::ofstream::app);
 }
 
 void DumpCSV::SlaveBegin(TTree * /*tree*/)
