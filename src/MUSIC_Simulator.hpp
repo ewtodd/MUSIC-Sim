@@ -38,6 +38,7 @@
 #include <TGeoNode.h>
 #include <TGeoVolume.h>
 #include <TGraph.h>
+#include <TGLViewer.h>
 #include <TH1.h>
 #include <TH2.h>
 #include <TLegend.h>
@@ -53,8 +54,8 @@
 #include <TTree.h>
 
 // Useful libraries
-#include "EnergyLoss.hpp"
-#include "FourVector.hpp"
+//#include "EnergyLoss.hpp"
+//#include "FourVector.hpp"
 #include "Particle.hpp"
 #include "NuclideFinder.hpp"
 
@@ -258,19 +259,20 @@ private:
     std::string SRIMdir;
     int pressure; // Torr
     std::string AnodeGeom;
-    int ELossBins = 300;
-    float MaxELoss = 25;
+    int ELossBins;
+    float MaxELoss;
     // beam
-    std::string beam;
+    std::string beamName;
     std::string SRIMbeam;
     std::string target;
     std::string compound;
-    static const int NumEvapPart = 10;
-    std::string* res = new std::string[NumEvapPart];
-    std::string* SRIMres = new std::string[NumEvapPart];
-    std::string* evap = new std::string[NumEvapPart];
-    std::string* SRIMevap = new std::string[NumEvapPart];
-    int* color = new int[NumEvapPart];
+    int NumEvapPart;
+    static const int MaxNumEvapPart = 10;
+    std::string* res = new std::string[MaxNumEvapPart];
+    std::string* SRIMres = new std::string[MaxNumEvapPart];
+    std::string* evap = new std::string[MaxNumEvapPart];
+    std::string* SRIMevap = new std::string[MaxNumEvapPart];
+    int* color = new int[MaxNumEvapPart];
     double Kb;  // MeV - Energy of the beam after the Ti window and degrader (if any)
     int strip;      // Strip where reaction takes place
     float Eres; // MeV - Strip energy resolution (larger values increase signal randomness)

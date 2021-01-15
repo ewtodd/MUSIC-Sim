@@ -76,6 +76,8 @@ MUSIC_Simulator::MUSIC_Simulator()
   // Geometry manager
   Geo = new TGeoManager("Geo", "MUSIC geometry manager");
 
+  cout << "HERE geo manager" << endl;
+
   // Define some materials and media
   MatVacuum = new TGeoMaterial("Vac", 0, 0, 0);
   // NOTE: Not sure about units of arguments
@@ -91,20 +93,6 @@ MUSIC_Simulator::MUSIC_Simulator()
   Rdm = new TRandom3();
   Rdm->SetSeed();     // Provide a seed that depends on the time.
   
-  // TEveManager for drawing 3D particle trajectories
-  Eve = new TEveManager(960, 1018, kTRUE, "V");
-
-  // Canvas and legends for traces
-  TraceCan = new TCanvas("TraceCan","Traces", 0, 0, 960, 1018);
-  TraceCan->Divide(2,2);
-  TraceCan->cd(1)->SetGrid();
-  TraceCan->cd(2)->SetGrid();
-  TraceCan->cd(3)->SetGrid();
-  TraceCan->cd(4)->SetGrid();
-  LegCol = new TLegend(0.692,0.616,0.826,0.861);
-  LegPart = new TLegend(0.692,0.616,0.826,0.861);
-  LabelKine = new TPaveText(0.152,0.679,0.437,0.875,"NDC");
-  
   // Arrays for the TTree
   SimTree = 0;
   de_r = new float[ExpAnodeStps];
@@ -116,16 +104,8 @@ MUSIC_Simulator::MUSIC_Simulator()
     seg[stp] = -1;
   }
 
-  // 3D particle tracks
-  TrackBeam = new TEveArrow();
-  TrackEvaP = new TEveArrow*[MaxEva];
-  TrackEvaR = new TEveArrow*[MaxEva];
-  for (int er=0; er<MaxEva; er++) {
-    TrackEvaP[er] = new TEveArrow();
-    TrackEvaR[er] = new TEveArrow();
-  }
-
   gSystem = 0;
+  cout << "end of constructor" << endl;
 }
 
 
@@ -887,7 +867,7 @@ int MUSIC_Simulator::loadCtrlFile(char* fileName)
 
       // Beam parameters
       else if (ParName=="beam")
-	ctf.beam = ParVal;
+	ctf.beamName = ParVal;
       else if (ParName=="Kb")
 	ctf.Kb = atof(ParVal.c_str());
       else if (ParName=="SRIMbeam")
@@ -899,18 +879,20 @@ int MUSIC_Simulator::loadCtrlFile(char* fileName)
       else if (ParName=="compuond")
 	ctf.compound = ParVal;
       // Evaporated particle (e.g. 1H, n) parameters
+      else if (ParName=="NumEvapPart")
+      	ctf.NumEvapPart = atoi(ParVal.c_str());
       else if (ParName=="evap0Name")
 	ctf.evap[0] = ParVal;
       else if (ParName=="evap0Color")
 	ctf.color[0] = atoi(ParVal.c_str());
-      else if (ParName=="evap0SRIM")
+      else if (ParName=="SRIMevap0")
 	ctf.SRIMevap[0] = ParVal;
       // Evaporation residue parameters 
       else if (ParName=="res0Name")
 	ctf.res[0] = ParVal;
       // else if (ParName=="res0Color")
       // 	color = atoi(ParVal.c_str());
-      else if (ParName=="res0SRIM")
+      else if (ParName=="SRIMres0")
 	ctf.SRIMres[0] = ParVal;
       
       // Simulation parameters
@@ -941,7 +923,7 @@ int MUSIC_Simulator::loadCtrlFile(char* fileName)
 #endif
     }
     Status = 1;
-  }
+  } 
   return Status;
 }
 
@@ -1327,12 +1309,37 @@ int MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxTime, 
 int MUSIC_Simulator::run()
 {
   //SetROOTSystemPointer(gSystem);
-  SetPrintLevel(0);
+  // TEveManager for drawing 3D particle trajectories
+  Eve = new TEveManager(960, 1018, kTRUE, "V");
+  Eve->GetDefaultGLViewer()->SetClearColor(kWhite);
+  // 3D particle tracks
+  TrackBeam = new TEveArrow();
+  TrackEvaP = new TEveArrow*[MaxEva];
+  TrackEvaR = new TEveArrow*[MaxEva];
+  for (int er=0; er<MaxEva; er++) {
+    TrackEvaP[er] = new TEveArrow();
+    TrackEvaR[er] = new TEveArrow();
+  }
+  
+  // Canvas and legends for traces
+  TraceCan = new TCanvas("TraceCan","Traces", 0, 0, 960, 1018);
+  TraceCan->Divide(2,2);
+  TraceCan->cd(1)->SetGrid();
+  TraceCan->cd(2)->SetGrid();
+  TraceCan->cd(3)->SetGrid();
+  TraceCan->cd(4)->SetGrid();
+  LegCol = new TLegend(0.692,0.616,0.826,0.861);
+  LegPart = new TLegend(0.692,0.616,0.826,0.861);
+  LabelKine = new TPaveText(0.152,0.679,0.437,0.875,"NDC");
+  
+  
+  SetPrintLevel(1);
   SetStripEnergyResolution(ctf.Eres);
   // Geometry
   SetAnode(ctf.AnodeGeom, 90, ctf.ELossBins, ctf.MaxELoss);
+
   // Beam
-  SetBeamParticle(ctf.beam, kBlack, ctf.SRIMbeam, ctf.Kb);
+  SetBeamParticle(ctf.beamName, kBlack, ctf.SRIMbeam, ctf.Kb);
   // Target
   SetTargetParticle(ctf.target);
   // Compound particle
@@ -1340,7 +1347,8 @@ int MUSIC_Simulator::run()
   // Evaporation residues and particles
   for (int i=0; i<ctf.NumEvapPart; i++)
     SetEvapResAndPart(ctf.res[i], ctf.SRIMres[i], kGreen+i, ctf.evap[i], ctf.SRIMevap[i], ctf.color[i]);
-  
+
+#if 1
   if (ctf.Method==0) {
     // Simulate events for one strip or generate trace data base (see below)
     Simulate(ctf.strip, ctf.NEvents, ctf.MaxTime, ctf.SimStep, ctf.Update, ctf.Wait, ctf.FileName, ctf.FileOpt);
@@ -1351,6 +1359,7 @@ int MUSIC_Simulator::run()
     // 			  PhiCMMin, PhiCMMax, PhiSteps,
     // 			  MaxTime, SimStep, Update, Wait);
   }
+#endif
   return 0;
 }
 

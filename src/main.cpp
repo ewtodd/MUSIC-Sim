@@ -72,7 +72,7 @@ int main(int argc, char* argv[])
   cout << "|--- MUSIC simulator ----------------------------------------------------|" << endl;
   cout << "| Created by Daniel Santiago-Gonzalez (Argonne National Laboratory)      |" << endl;
   cout << "| ver 3.0 (2020/1)                                                       |" << endl;
-  cout << "| Usage: ./andes control.file                                            |" << endl;
+  cout << "| Usage: ./musicsim control.file                                         |" << endl;
   cout << "| See README.md file for basic installation and usage.                   |" << endl;
   cout << "| For documentation, software updates and license details, please visit: |" << endl;
   cout << "| https://gitlab.phy.anl.gov/music/sim                                   |" << endl;
@@ -83,8 +83,8 @@ int main(int argc, char* argv[])
     cout << "musicsim error: only one argument is expected." << endl;
     return 0;
   }
-
-  auto MS = new MUSIC_Simulator();
+  
+  auto MS = new MUSIC_Simulator(); 
   if (argc==1) {
     cout << "musicsim warning: no control file specified. Using default parameters." << endl;
   }
@@ -98,7 +98,7 @@ int main(int argc, char* argv[])
   cout << "To quit musicsim you have 3 options:\n"
        << " 1) In the Eve Main Window, click 'Browser', then click 'Quit ROOT'\n"
        << " 2) In the Chart window, click 'File', then click 'Quit ROOT'\n"
-       << " 3) In this terminal, type CTRL+Q" << endl;
+       << " 3) In this terminal, type CTRL+C" << endl;
   rootApp.Run(kTRUE);
   rootApp.HandleException(kSigSegmentationViolation);
     
