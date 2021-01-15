@@ -53,10 +53,10 @@
 #include <TTree.h>
 
 // Useful libraries
-#include "../physics-tools/EnergyLoss.hpp"
-#include "../physics-tools/FourVector.hpp"
-#include "../physics-tools/Particle.hpp"
-#include "../physics-tools/NuclideFinder.hpp"
+#include "EnergyLoss.hpp"
+#include "FourVector.hpp"
+#include "Particle.hpp"
+#include "NuclideFinder.hpp"
 
 // NOTE: The inclusion of the header files in this .hpp instead of the .cpp file is
 //       justified by "Headers and Includes: Why and How"  (see section 5 of 
@@ -78,8 +78,8 @@ public:
   void SetCompoundParticle(std::string Name);
   void SetDecayDaughter1(std::string Name, int Color, std::string ELossFile);
   void SetDecayDaughter2(std::string Name, int Color, std::string ELossFile);
-  void SetEvapResAndPart(string ResName, string ResELossFile, int ResColor, string ParName, 
-			 string ParELossFile, int ParColor);
+  void SetEvapResAndPart(std::string ResName, std::string ResELossFile, int ResColor,
+			 std::string ParName, std::string ParELossFile, int ParColor);
   void SetHeavyParticle(std::string Name, int Color, std::string ELossFile, int NEexc=0,
 			double* Eexc=0/*MeV*/);
   void SetLightParticle(std::string Name, int Color, std::string ELossFile);
@@ -88,7 +88,8 @@ public:
   void SetROOTSystemPointer(TSystem* gSystem);
   void SetStripEnergyResolution(float Sigma/*MeV*/);
   void SetTargetParticle(std::string Name);
-  void Simulate(int StpID, int NEvents, double MaxTime, double UserStep, int UpdateVis=0, int Wait=0, string FileName="", string FileOpt="recreate");
+  void Simulate(int StpID, int NEvents, double MaxTime, double UserStep, int UpdateVis=0, int Wait=0,
+		std::string FileName="", std::string FileOpt="recreate");
   void Simulate(int StpID, double ThCMMin, double ThCMMax, int ThSteps, double PhiCMMin, 
 		double PhiCMMax, int PhiSteps, double MaxTime, double UserStep, int Wait=0);
   void WriteTraces(char* FileName);
@@ -99,7 +100,7 @@ private:
   void ComputeDetectorResponse(int event, int reacStp, int UpdateVis);
   void CreateTracesAndTrajectories(int NEvents);
   void DrawMUSIC(TEveManager* gEve, short Transparency /*From 0 to 100*/);
-  TTree* InitTree(TFile* ROOTfile, string FileOpt);
+  TTree* InitTree(TFile* ROOTfile, std::string FileOpt);
   void PrintCompoundEexc(double Kb, double** DeltaEB);
   void PrintEnergetics(double Kb, double** DeltaEB);
   int PropagateParticle(Particle* PO, int Event, double MaxTime, double UserStep, double ** DE);
@@ -234,7 +235,7 @@ private:
 
   
   // Log file
-  ofstream Log;
+  std::ofstream Log;
 
   // To be used in CheckMemory
   TSystem* gSystem;

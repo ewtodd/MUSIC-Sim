@@ -10,15 +10,6 @@ using namespace std;
 ///////////////////////////////////////////////////////////////////////////////////
 MUSIC_Simulator::MUSIC_Simulator()
 {
-  // Welcome message
-  cout << "================================================================================" << endl;
-  cout << "|--- MUSIC simulator ----------------------------------------------------------|" << endl;
-  cout << "| Written by Daniel Santiago-Gonzalez                                          |" << endl;
-  cout << "| ver 2.0 (2016/4)                                                             |" << endl;
-  cout << "| To get the latest version visit:                                             |" << endl;
-  cout << "| https://gitlab.phy.anl.gov/music/sim.git                                     |" << endl;
-  cout << "================================================================================" << endl;
-
   Name = "MUSIC_Simulator";
 
   // Initialize variables.
