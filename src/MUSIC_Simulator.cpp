@@ -1925,7 +1925,7 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
     //   EvaR[er]->DoNotPropagate = false;
 
     double Ex = Rdm->Uniform(0.0/*Qvalue/2*/, Qvalue); 
-    // Ex = 0; // Forcing g.s. of evaporation residue
+    //Ex = 0; // Forcing g.s. of evaporation residue
 
     // If the user did not specify the value of theta and phi (initial
     // theta=phi=-1) or for er>0, randomly select the scattering angle
