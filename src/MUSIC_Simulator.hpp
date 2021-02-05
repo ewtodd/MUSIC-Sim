@@ -73,13 +73,14 @@ public:
 			     double MaxTime, double UserStep, int UpdateEnabled=0, int Wait=0);
   void SetAnode(std::string AnodeGeomFile, short Trans/*From 0 to 100*/, int ELossBins=400, 
 		float MaxELoss=5);
-  void SetBeamParticle(std::string Name, int Color, std::string ELossFile);
+  void SetBeamParticle(std::string Name, int Color, std::string ELossFile, float dEdxScale=1.0);
   //  void SetBeamSpot(double diameter);
   void SetCompoundParticle(std::string Name);
   void SetDecayDaughter1(std::string Name, int Color, std::string ELossFile);
   void SetDecayDaughter2(std::string Name, int Color, std::string ELossFile);
   void SetEvapResAndPart(std::string ResName, std::string ResELossFile, int ResColor,
-			 std::string ParName, std::string ParELossFile, int ParColor);
+			 std::string ParName, std::string ParELossFile, int ParColor,
+			 float dEdxScaleRes=1.0, float dEdxScalePar=1.0);
   void SetHeavyParticle(std::string Name, int Color, std::string ELossFile, int NEexc=0,
 			double* Eexc=0/*MeV*/);
   void SetLightParticle(std::string Name, int Color, std::string ELossFile);
@@ -100,6 +101,7 @@ private:
   void ComputeDetectorResponse(int event, int reacStp, int UpdateVis);
   void CreateTracesAndTrajectories(int NEvents);
   void DrawMUSIC(TEveManager* gEve, short Transparency /*From 0 to 100*/);
+  void InitCTF();
   TTree* InitTree(TFile* ROOTfile, std::string FileOpt);
   void PrintCompoundEexc(double Kb, double** DeltaEB);
   void PrintEnergetics(double Kb, double** DeltaEB);
@@ -183,7 +185,7 @@ private:
 
 
   // Geometry stuff
-  int AnodeStps;
+  int AnodeRows;
   int AnodeCols;
   double AnodeDepth;  // distance along z-axis
   double AnodeLength; // distance along x-axis
@@ -252,7 +254,6 @@ private:
 
 
   struct controlFileParams {
-    std::string SRIMdir;
     int pressure; // Torr
     std::string AnodeGeom;
     int ELossBins;
@@ -260,19 +261,23 @@ private:
     // beam
     std::string beamName;
     std::string SRIMbeam;
+    float dEdxScaleBeam=1.0;
     std::string target;
     std::string compound;
     int NumEvapPart;
     static const int MaxNumEvapPart=10;
     std::string* res = new std::string[MaxNumEvapPart];
     std::string* SRIMres = new std::string[MaxNumEvapPart];
+    float* dEdxScaleRes = new float[MaxNumEvapPart];
+    int* colorRes = new int[MaxNumEvapPart];
     std::string* evap = new std::string[MaxNumEvapPart];
     std::string* SRIMevap = new std::string[MaxNumEvapPart];
-    int* color = new int[MaxNumEvapPart];
+    float* dEdxScaleEvap = new float[MaxNumEvapPart];
+    int* colorEvap = new int[MaxNumEvapPart];
     double Kb;  // MeV - Energy of the beam after the Ti window and degrader (if any)
     double KbFWHM=0;  // MeV - Beam energy spread (full-width half maximum)
     int strip;      // Strip where reaction takes place
-    float Eres=0; // MeV - Strip energy resolution (larger values increase signal randomness)
+    double Eres=0; // MeV - Strip energy resolution (larger values increase signal randomness)
     int NEvents;  // Number of simulated events (recommendation: keep it <1000)
     int Wait;       // 1 - canvas waits for user's double click, 0 - no wait
     int Update;     // 1 - update visuals for every event, 0 - don't

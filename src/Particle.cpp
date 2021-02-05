@@ -555,7 +555,7 @@ void Particle::SetExcEnergy(double Ex) {
 // (tables). The arguments are the number of energy loss files (NumMedia) and a
 // string array with the name of each energy loss files.
 ///////////////////////////////////////////////////////////////////////////////////
-void Particle::SetMedia(int NumMedia, string* ELossFile)
+void Particle::SetMedia(int NumMedia, string* ELossFile, float dEdxScale)
 {
   if (Q>0 || Z>0) {
     if (NumMedia<=MaxMedia) {
@@ -563,9 +563,7 @@ void Particle::SetMedia(int NumMedia, string* ELossFile)
       this->ELossFile = new string[NumMedia];
       for (int m=0; m<NumMedia; m++) {
 	this->ELossFile[m] = ELossFile[m];
-	IonInMedium[m] = new EnergyLoss();
-	IonInMedium[m]->LoadSRIMFile(ELossFile[m]);
-	IonInMedium[m]->SetIonMass(Mass);
+	IonInMedium[m] = new EnergyLoss(ELossFile[m], Mass, dEdxScale);
 	if (!IonInMedium[m]->GoodELossFile) {
 	  delete IonInMedium[m];
 	  IonInMedium[m] = 0;
@@ -586,12 +584,12 @@ void Particle::SetMedia(int NumMedia, string* ELossFile)
 ///////////////////////////////////////////////////////////////////////////////////
 // Similar to SetMedia but for when the user only needs one medium.
 ///////////////////////////////////////////////////////////////////////////////////
-void Particle::SetMedium(string ELossFile)
+void Particle::SetMedium(string ELossFile, float dEdxScale)
 {
   int NumMedia = 1;
   string* AuxELossPtr = new string[NumMedia];
   AuxELossPtr[0] = ELossFile;
-  SetMedia(NumMedia, AuxELossPtr);
+  SetMedia(NumMedia, AuxELossPtr, dEdxScale);
   return;
 }
 

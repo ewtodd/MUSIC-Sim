@@ -24,9 +24,12 @@ using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Constructor. When called with default values, i.e. EnergyLoss(), the SRIM table will 
-// need to be loaded by calling LoadSRIMFile and the ion mass by SetIonMass.
+// need to be loaded by calling LoadSRIMFile and the ion mass by SetIonMass. As of
+// Feb/2021 the parameter dEdxScale has been introduce (default value 1.0). Through
+// this member we can scale the stopping power from the SRIM tables in an attempt to
+// adjust the calculated dEdx to experimental data.
 ////////////////////////////////////////////////////////////////////////////////////////
-EnergyLoss::EnergyLoss(string SRIM_file, float IonMass)
+EnergyLoss::EnergyLoss(string SRIM_file, float IonMass, float dEdxScale)
 {
   BraggCurve = 0;
   dEdx_e = 0;
@@ -36,6 +39,7 @@ EnergyLoss::EnergyLoss(string SRIM_file, float IonMass)
   GoodELossFile = 0;
   IonEnergy = 0;
   this->IonMass = IonMass;  // In MeV/c^2
+  this->dEdxScale = dEdxScale;
   last_point = 0;
   points = 0;
   TOF = 0;
@@ -232,7 +236,7 @@ double EnergyLoss::GetEnergyLoss(double energy /*MeV*/, double distance /*cm*/)
     // The stopping power units are in MeV/mm so we multiply by 10 to convert to MeV/cm.
     dEdx = (dEdx_e1e+dEdx_n1e)*10*distance;
   }  
-  return (1.15*dEdx);  // Warning: For 17F(alpha,p) only!!
+  return (dEdx*dEdxScale);  // dEdxScale used as of Feb/2021.
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////

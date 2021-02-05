@@ -31,7 +31,7 @@ Author: Daniel Santiago-Gonzalez
 
 class EnergyLoss{
 public:
-  EnergyLoss(std::string SRIM_file="", float IonMass=0/*MeV/c^2*/);
+  EnergyLoss(std::string SRIM_file="", float IonMass=0/*MeV/c^2*/, float dEdxScale=1.0);
   void GetBraggCurve(float InitE, int NSteps, float* Dist, float StepSize);
   void GetBraggCurves(int NCurves, float* InitE, int NSteps, float FinalDist);
   void GetBraggCurves(int NCurves, float* InitE, int NSteps, float* Dist, float StepSize);
@@ -72,7 +72,8 @@ private:
   int last_point;
   int points;
   double TOF;
-
+  float dEdxScale;
+  
   //  static const double c = 29.9792458;  // Speed of light in cm/ns (root-config ver5)
   //  static constexpr double c = 29.9792458;  // Speed of light in cm/ns (roor-config ver6)
 };

@@ -26,7 +26,8 @@ MUSIC_Simulator::MUSIC_Simulator()
 
   // Initialize selected pointers to zero (non-zero pointers initialized below).
   Beam = 0;
-  Gaussian = new TF1("Gaussian","gaus",-1e3,1e3);
+  Gaussian = new TF1("Gaussian","gaus",-1e2,1e2);
+  Gaussian->SetNpx(1000);
   Target = 0;
   Trace = 0;
   Compound = 0;
@@ -101,6 +102,8 @@ MUSIC_Simulator::MUSIC_Simulator()
     seg[stp] = -1;
   }
 
+  InitCTF(); // Initialize control file parameters.
+  
   gSystem = 0;
 }
 
@@ -199,7 +202,7 @@ void MUSIC_Simulator::CalculateExcEnergyRange()
   float TotalLength = 0;
   
  
-  for (int i=0; i<AnodeStps; i++) 
+  for (int i=0; i<AnodeRows; i++) 
     TotalLength += AnodeDZ[i][0];
     
   // Linear momentum and total energy of the beam particle in the lab with the current
@@ -222,7 +225,7 @@ void MUSIC_Simulator::CalculateExcEnergyRange()
   EexcMin = Eexc_end = sqrt(Ptot*Ptot) - mf;
   cout << "   Eexc(end) = " << Eexc_end << " MeV" << endl;
   cout << "Exc. energy range in each segment:" << endl;
-  for (int i=0; i<AnodeStps; i++) {
+  for (int i=0; i<AnodeRows; i++) {
     Kb = Beam->GetFinalEnergy(0, Kb, AnodeDZ[i][0], 0.001);
     // Linear momentum and total energy of the beam particle in the lab with the current
     // value of the kinetic energy.
@@ -237,7 +240,7 @@ void MUSIC_Simulator::CalculateExcEnergyRange()
     cout << i << "\t" << AnodeDZ[i][0] << " cm \t" << SegEexcRange[i] << " MeV" << endl;
     // The excitation energy at the end of this segment is the excitation energy at the beginnig
     // of the next segment.
-    if (i+1<AnodeStps) 
+    if (i+1<AnodeRows) 
       Eexc_beg = Eexc_end;
   }
 #endif
@@ -289,40 +292,46 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt, int reacStp, int UpdateVi
   double DeltaE = 0;
   TraceMult->Reset();
   
-  // Reset the SimTree leaves
+  // Reset the SimTree leaves (already reset in Simulate())
   if (SimTree!=0) {
-    cathode = 0;
-    strip0 = 0;
-    strip17 = 0;
+    // cathode = 0;
+    // strip0 = 0;
+    // strip17 = 0;
     this->reacStp = reacStp;
-    for (int stp=0; stp<ExpAnodeStps; stp++) {
-      de_l[stp] = 0;
-      de_r[stp] = 0;
-    }
+    // for (int stp=0; stp<ExpAnodeStps; stp++) {
+    //   de_l[stp] = 0;
+    //   de_r[stp] = 0;
+    // }
   }
   
-  // Loop over the anode's strips and columns
-  for (int stp=0; stp<AnodeStps; stp++) {
+  // Loop over the anode's rows and columns
+  for (int row=0; row<AnodeRows; row++) {
     DeltaE = 0;
     int mult = 0;
     for (int col=0; col<AnodeCols+1; col++) {
-      DeltaE = DeltaEB[stp][col];
+      DeltaE = DeltaEB[row][col];
       for (int er=0; er<CurEva; er++) {
-	DeltaE += DeltaE_EvaP[er][stp][col];
-	DeltaE += DeltaE_EvaR[er][stp][col];
+	DeltaE += DeltaE_EvaP[er][row][col];
+	DeltaE += DeltaE_EvaR[er][row][col];
       }
-      
+
+      if (ctf.Eres>0.0) {
+	// Adding randomness to the energy loss to mimic experimental jitter
+	Gaussian->SetParameters(1.0, 0.0, ctf.Eres);
+	DeltaE += Gaussian->GetRandom();
+      }	
+
       if (DeltaE>Ethresh && col<AnodeCols)
 	mult++;
 
       // Fill tree leaves
       if (SimTree!=0) {
-	int stpid = AnodeStpID[stp][col];
+	int stpid = AnodeStpID[row][col];
 	if (stpid>=0 && stpid<=17) {
 	  cathode += DeltaE;
-	  if (stpid==0)
+	  if (stpid==0 && col==0)
 	    strip0 += DeltaE;
-	  else if (stpid==17)
+	  else if (stpid==17 && col==0)
 	    strip17 += DeltaE;
 	  else if (stpid-1<ExpAnodeStps) {
 	    seg[stpid-1] = stpid;
@@ -339,13 +348,13 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt, int reacStp, int UpdateVi
       // 	Gaussian->SetParameters(1.0, DeltaE, EneSigma);
       // 	DeltaE = Gaussian->GetRandom();
       // }
-      Trace[col]->SetPoint(stp, stp, DeltaE);
+      Trace[col]->SetPoint(row, row, DeltaE);
       // if (PrintLevel>0)
-      // 	cout << stp << " " << col << ": " << DeltaE << " = " << DeltaEB[stp][col] << "+" 
-      // 	     << DeltaEL[stp][col] << "+" << DeltaEH[stp][col] << "+" << DeltaED1[stp][col] 
-      // 	     << "+" << DeltaED2[stp][col] << "+E.R."<< endl;
+      // 	cout << row << " " << col << ": " << DeltaE << " = " << DeltaEB[row][col] << "+" 
+      // 	     << DeltaEL[row][col] << "+" << DeltaEH[row][col] << "+" << DeltaED1[row][col] 
+      // 	     << "+" << DeltaED2[row][col] << "+E.R."<< endl;
     }
-    TraceMult->Fill(stp, mult);
+    TraceMult->Fill(row, mult);
   }
   
 
@@ -374,7 +383,7 @@ void MUSIC_Simulator::CreateTracesAndTrajectories(int NEvents)
   short* Chroma = new short[AnodeCols];
   for (int col=0; col<AnodeCols; col++)
     Chroma[col] = 7 - col;
-  for (int stp=0; stp<AnodeStps; stp++) {
+  for (int stp=0; stp<AnodeRows; stp++) {
     int NotWhiteColumns = 0;
     for (int col=0; col<AnodeCols; col++)
       if (AnodeColor[stp][col]!=kWhite)
@@ -403,7 +412,7 @@ void MUSIC_Simulator::CreateTracesAndTrajectories(int NEvents)
     }
   }
 
-  TraceMult = new TH1F("TraceMult","Mult.",AnodeStps,-0.5,AnodeStps-0.5);
+  TraceMult = new TH1F("TraceMult","Mult.",AnodeRows,-0.5,AnodeRows-0.5);
   TraceMult->GetXaxis()->SetTitle("Strip index (in AnodeGeometry file)");
   TraceMult->GetXaxis()->CenterTitle();
  
@@ -583,7 +592,7 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
   double theta = 0;
   double phi = 0;
   
-  NEvents = PhiSteps*ThSteps*AnodeStps;
+  NEvents = PhiSteps*ThSteps*AnodeRows;
   NTraces = 0;
     
   // Create new traces and trajectories (objectrs) for visualizing the
@@ -604,7 +613,7 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
   //   BeamCopy->Print(Log);
   //  DeltaEB_ave = PropagateParticle(BeamCopy, ctf.Kb, MaxTime, UserStep); 
   PropagateParticle(BeamCopy, 0, MaxTime, UserStep, DeltaEB_ave);
-  for (int stp=0; stp<AnodeStps; stp++)
+  for (int stp=0; stp<AnodeRows; stp++)
     for (int col=0; col<AnodeCols+1; col++) 
       TraceUB[col]->SetPoint(stp, stp, DeltaEB_ave[stp][col]);
 
@@ -623,15 +632,15 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
 
   // Loop over all strips with a non-negative ID (defined in the
   // argument of the SetAnode method).
-  //for (int stp_base=11; stp_base<AnodeStps; stp_base++) {
-  for (int stp_base=0; stp_base<AnodeStps; stp_base++) {
+  //for (int stp_base=11; stp_base<AnodeRows; stp_base++) {
+  for (int stp_base=0; stp_base<AnodeRows; stp_base++) {
     if (AnodeStpID[stp_base][0]>=0) {
       
       // Get the beam energy limits in the selected strip (assuming
       // the beam direction is parallel to the z-axis).
       MinZ = 0;
       MaxZ = AnodeDZ[0][0];
-      for (int stp=1; stp<AnodeStps; stp++) {
+      for (int stp=1; stp<AnodeRows; stp++) {
 	MinZ += AnodeDZ[stp-1][0];
 	MaxZ += AnodeDZ[stp][0];
 	if (AnodeStpID[stp][0]==AnodeStpID[stp_base][0])
@@ -667,7 +676,7 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
 	  
 	  if (PrintLevel>0) {
 	    Log << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << endl;
-	    Log << "!!!       EVENT " << evt << "\n" << endl;
+	    Log << "!!!       EVENT " << evt << endl;
 	    Log << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n" << endl;
 	  }
 	  
@@ -675,7 +684,7 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
 	  HCT->Draw();
 	  
 	  // Reset the detector response
-	  for (int stp=0; stp<AnodeStps; stp++) 
+	  for (int stp=0; stp<AnodeRows; stp++) 
 	    for (int col=0; col<AnodeCols+1; col++) {
 	      DeltaEB[stp][col] = 0;
 	      DeltaEL[stp][col] = 0;
@@ -841,6 +850,7 @@ int MUSIC_Simulator::loadCtrlFile(char* fileName)
   int Status = 0;
   ifstream Ctrl(fileName);
   string aux, ParName, ParVal;
+  
   if (Ctrl.is_open()) {
     getline(Ctrl,aux);  // skipping first line
     getline(Ctrl,aux);  // skipping second line
@@ -850,8 +860,6 @@ int MUSIC_Simulator::loadCtrlFile(char* fileName)
       // Detector parameters
       if (ParName=="AnodeGeom")
 	ctf.AnodeGeom = ParVal;
-      else if (ParName=="SRIMdir")
-	ctf.SRIMdir = ParVal;
       else if (ParName=="pressure")
 	ctf.pressure = atoi(ParVal.c_str());
       else if (ParName=="ELossBins")
@@ -870,15 +878,20 @@ int MUSIC_Simulator::loadCtrlFile(char* fileName)
 	ctf.Kb = atof(ParVal.c_str());
       else if (ParName=="EbeamFWHM" || ParName=="KbFWHM")
 	ctf.KbFWHM = atof(ParVal.c_str());
-	else if (ParName=="SRIMbeam")
+      else if (ParName=="SRIMbeam")
 	ctf.SRIMbeam = ParVal;
+      else if (ParName=="dEdxScaleBeam")
+	ctf.dEdxScaleBeam = atof(ParVal.c_str());
+  
       // Target parameters
       else if (ParName=="target")
 	ctf.target = ParVal;
+      
       // Compound parameters
       else if (ParName=="compound")
 	ctf.compound = ParVal;
-      // Evaporated particle (e.g. 1H, n) parameters
+
+      // Number of evaporated particles (e.g. 1H, n)
       else if (ParName=="NumEvapPart")
       	ctf.NumEvapPart = atoi(ParVal.c_str());
 
@@ -886,27 +899,64 @@ int MUSIC_Simulator::loadCtrlFile(char* fileName)
       else if (ParName=="evap0Name")
 	ctf.evap[0] = ParVal;
       else if (ParName=="evap0Color")
-	ctf.color[0] = atoi(ParVal.c_str());
+	ctf.colorEvap[0] = atoi(ParVal.c_str());
       else if (ParName=="SRIMevap0")
 	ctf.SRIMevap[0] = ParVal;
+      else if (ParName=="dEdxScaleEvap0")
+	ctf.dEdxScaleEvap[0] = atof(ParVal.c_str());
+ 
       // Evaporation residue 0
       else if (ParName=="res0Name")
 	ctf.res[0] = ParVal;
+      else if (ParName=="res0Color")
+	ctf.colorRes[0] = atoi(ParVal.c_str());
       else if (ParName=="SRIMres0")
 	ctf.SRIMres[0] = ParVal;
-
+      else if (ParName=="dEdxScaleRes0")
+	ctf.dEdxScaleRes[0] = atof(ParVal.c_str());
+      
       // Particle 1
       else if (ParName=="evap1Name")
 	ctf.evap[1] = ParVal;
       else if (ParName=="evap1Color")
-	ctf.color[1] = atoi(ParVal.c_str());
+	ctf.colorEvap[1] = atoi(ParVal.c_str());
       else if (ParName=="SRIMevap1")
 	ctf.SRIMevap[1] = ParVal;
+       else if (ParName=="dEdxScaleEvap1")
+	ctf.dEdxScaleEvap[0] = atof(ParVal.c_str());
+     
       // Evaporation residue 1
       else if (ParName=="res1Name")
 	ctf.res[1] = ParVal;
+      else if (ParName=="res1Color")
+	ctf.colorRes[1] = atoi(ParVal.c_str());
       else if (ParName=="SRIMres1")
 	ctf.SRIMres[1] = ParVal;
+      else if (ParName=="dEdxScaleRes1")
+	ctf.dEdxScaleRes[1] = atof(ParVal.c_str());
+
+      // Particle 2
+      else if (ParName=="evap2Name")
+	ctf.evap[2] = ParVal;
+      else if (ParName=="evap2Color")
+	ctf.colorEvap[2] = atoi(ParVal.c_str());
+      else if (ParName=="SRIMevap2")
+	ctf.SRIMevap[2] = ParVal;
+       else if (ParName=="dEdxScaleEvap2")
+	ctf.dEdxScaleEvap[0] = atof(ParVal.c_str());
+     
+      // Evaporation residue 2
+      else if (ParName=="res2Name")
+	ctf.res[2] = ParVal;
+      else if (ParName=="res2Color")
+	ctf.colorRes[2] = atoi(ParVal.c_str());
+      else if (ParName=="SRIMres2")
+	ctf.SRIMres[2] = ParVal;
+      else if (ParName=="dEdxScaleRes2")
+	ctf.dEdxScaleRes[2] = atof(ParVal.c_str());
+
+      // DSG - need to generalize the residue/particle lines above and
+      // make it go to MaxNumEvepPart. Maybe with sprintf().
 
       // Simulation parameters
       else if (ParName=="NEvents")
@@ -946,10 +996,47 @@ int MUSIC_Simulator::loadCtrlFile(char* fileName)
   return Status;
 }
 
-
-
-
-
+///////////////////////////////////////////////////////////////////////////////////
+// Basic initialization of control file parameters.
+///////////////////////////////////////////////////////////////////////////////////
+void MUSIC_Simulator::InitCTF()
+{
+    ctf.pressure = 100; // Torr
+    ctf.AnodeGeom = "";
+    ctf.ELossBins = 300;
+    ctf.MaxELoss = 10.0;
+    ctf.beamName = "unassigned beam";
+    ctf.SRIMbeam = "";
+    ctf.dEdxScaleBeam = 1.0;
+    ctf.target = "unassigned target";
+    ctf.compound = "unassigned compound";
+    ctf.NumEvapPart = ctf.MaxNumEvapPart;
+    for (int i=0; i<ctf.NumEvapPart; i++) {
+      ctf.res[i] = "unassigned res";
+      ctf.SRIMres[i] = "";
+      ctf.dEdxScaleRes[i] = 1.0;
+      ctf.colorRes[i] = 416;
+      ctf.evap[i] = "unassigned evap";
+      ctf.SRIMevap[i] = "";
+      ctf.dEdxScaleEvap[i] = 1.0;
+      ctf.colorEvap[i] = 616;
+    }
+    ctf.Kb = 100;      // MeV - Energy of the beam after the Ti window and degrader (if any)
+    ctf.KbFWHM = 0.0;  // MeV - Beam energy spread (full-width half maximum)
+    ctf.strip = 5;     // Strip where reaction takes place
+    ctf.Eres = 0.0;    // MeV - Strip energy resolution (larger values increase signal randomness)
+    ctf.NEvents = 10;  // Number of simulated events (recommendation: keep it <1000)
+    ctf.Wait = 1;      // 1 - canvas waits for user's double click, 0 - no wait
+    ctf.Update = 1;    // 1 - update visuals for every event, 0 - don't
+    ctf.MaxTime = 2000.0; // ns - max time for an event
+    ctf.SimStep = 0.001;  // cm - simulation steps size
+    ctf.Method = 0;    // Select the simulation method: 0 - Simulate, 1 - GenerateTraceDatabase
+    ctf.FileName = "";
+    ctf.FileOpt = "";
+    ctf.PrintOpt = 0;
+    return;
+}
+    
 ///////////////////////////////////////////////////////////////////////////////////
 // Initialize the TTree (SimTree) similar to the one used for experimental data.
 ///////////////////////////////////////////////////////////////////////////////////
@@ -1056,7 +1143,7 @@ void MUSIC_Simulator::PrintEnergetics(double Kb, double** DeltaEB)
   cout.width(15);
   cout << "ECMmin[MeV]" << endl;
 
-  for (int stp=0; stp<AnodeStps+1; stp++) {
+  for (int stp=0; stp<AnodeRows+1; stp++) {
     // Exc. energy of compound particle.
     cout.width(5);
     cout << stp;
@@ -1133,7 +1220,7 @@ void MUSIC_Simulator::PrintEnergetics(double Kb, double** DeltaEB)
 ///////////////////////////////////////////////////////////////////////////////////
 int MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxTime, double UserStep, double** DE)
 {
-  for (int stp = 0; stp<AnodeStps; stp++) 
+  for (int stp = 0; stp<AnodeRows; stp++) 
     for (int col = 0; col<AnodeCols+1; col++) 
       DE[stp][col] = 0;
 
@@ -1225,7 +1312,7 @@ int MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxTime, 
     int stp = -1;
     int col = -1;
     Vol = Geo->FindNode(xf, yf, zf)->GetVolume(); 
-    for (int s=0; s<AnodeStps; s++) 
+    for (int s=0; s<AnodeRows; s++) 
       for (int c=0; c<AnodeCols; c++) 
 	if (Vol==VolAnode[s][c]) {
 	  stp = s;
@@ -1306,15 +1393,14 @@ int MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxTime, 
   } // end 
 
 
-  for (int stp = 0; stp<AnodeStps; stp++) 
+  for (int stp = 0; stp<AnodeRows; stp++) 
     for (int col = 0; col<AnodeCols; col++)  {
       if (DE[stp][col]>0) {
-	if (ctf.Eres>0.0) {
-	  // Adding randomness to the energy loss to mimic eperimental jitter
-	  Gaussian->SetRange(0.0, 10*DE[stp][col]);
-	  Gaussian->SetParameters(1.0, DE[stp][col], ctf.Eres);
-	  DE[stp][col] = Gaussian->GetRandom();
-	}	
+	// if (ctf.Eres>0.0) {
+	//   // Adding randomness to the energy loss to mimic eperimental jitter
+	//   Gaussian->SetParameters(1.0, 0.0, ctf.Eres);
+	//   DE[stp][col] += Gaussian->GetRandom();
+	// }	
 	DE[stp][AnodeCols] += DE[stp][col];
       }
     }
@@ -1338,7 +1424,9 @@ void MUSIC_Simulator::ResetBranches()
     de_l[stp] = 0;
     seg[stp] = -1;
   }
-  strip0 = strip17 = cathode = 0;
+  strip0 = 0;
+  strip17 = 0;
+  cathode = 0;
   reacStp = -1;
   Kb = 0;
   for (int er=0; er<MaxEva; er++) {
@@ -1407,10 +1495,12 @@ int MUSIC_Simulator::run()
   for (int i=0; i<ctf.NumEvapPart; i++)
     SetEvapResAndPart(ctf.res[i],
 		      ctf.SRIMres[i],
-		      kGreen+i,
+		      ctf.colorRes[i],
 		      ctf.evap[i],
 		      ctf.SRIMevap[i],
-		      ctf.color[i]);
+		      ctf.colorEvap[i],
+		      ctf.dEdxScaleRes[i],
+		      ctf.dEdxScaleEvap[i]);
 
   if (ctf.Method==0) {
     // Simulate events for one strip or generate trace data base (see below)
@@ -1465,7 +1555,7 @@ int MUSIC_Simulator::run()
   AnodeDepth = 0;
   AnodeLength = 0;
   AnodeHeight = 0;
-  AnodeStps = 0;
+  AnodeRows = 0;
   AnodeCols = 0;
 
   if (PrintLevel>0) {
@@ -1484,23 +1574,23 @@ int MUSIC_Simulator::run()
     do {
       getline(GeomFile, line);
       if (line.find("strips:")!=string::npos) 
-	AnodeStps = atoi(line.substr(line.find(':')+1).c_str());
+	AnodeRows = atoi(line.substr(line.find(':')+1).c_str());
       if (line.find("columns:")!=string::npos)
 	AnodeCols = atoi(line.substr(line.find(':')+1).c_str());     
     } while (!GeomFile.eof());
     GeomFile.close();
     
-    cout << "Anode strips: " << AnodeStps << endl;
+    cout << "Anode strips: " << AnodeRows << endl;
     cout << "Anode columns: " << AnodeCols << endl;    
-    if (AnodeStps>0 && AnodeCols>0) {
+    if (AnodeRows>0 && AnodeCols>0) {
       // Initialize the anode segment dimensions
-      AnodeDX = new double*[AnodeStps];
-      AnodeDY = new double*[AnodeStps];
-      AnodeDZ = new double*[AnodeStps];
-      AnodeColor = new short*[AnodeStps];
-      AnodeSegName = new string*[AnodeStps];
-      AnodeStpID = new int*[AnodeStps];
-      for (int stp=0; stp<AnodeStps; stp++) {
+      AnodeDX = new double*[AnodeRows];
+      AnodeDY = new double*[AnodeRows];
+      AnodeDZ = new double*[AnodeRows];
+      AnodeColor = new short*[AnodeRows];
+      AnodeSegName = new string*[AnodeRows];
+      AnodeStpID = new int*[AnodeRows];
+      for (int stp=0; stp<AnodeRows; stp++) {
 	AnodeDX[stp] = new double[AnodeCols];
 	AnodeDY[stp] = new double[AnodeCols];
 	AnodeDZ[stp] = new double[AnodeCols];
@@ -1559,7 +1649,7 @@ int MUSIC_Simulator::run()
 	AnodeDY[stp][col] = dy;
 	AnodeDZ[stp][col] = dz;
 	AnodeColor[stp][col] = color;
-	if (PrintLevel>1)
+	if (PrintLevel>0)
 	  Log << nl << "\t" << AnodeStpID[stp][col] << "\t" << AnodeSegName[stp][col] << "\t" 
 	      << AnodeDX[stp][col] << "\t" << AnodeDY[stp][col] << "\t" << AnodeDZ[stp][col] 
 	      << "\t" << AnodeColor[stp][col] << endl;
@@ -1568,7 +1658,7 @@ int MUSIC_Simulator::run()
     
       // The total anode depth (distance along the z axis) is the sum of
       // all segment depths for the first column
-      for (int stp=0; stp<AnodeStps; stp++)
+      for (int stp=0; stp<AnodeRows; stp++)
 	AnodeDepth += AnodeDZ[stp][0];
 
       // The total anode length (distance along the x axis) is the sum
@@ -1585,8 +1675,8 @@ int MUSIC_Simulator::run()
       // nothing to do with the energy loss. The actual stopping power
       // tables are contained in the Particle objects.
       double z0 = 0;
-      VolAnode = new TGeoVolume**[AnodeStps];
-      for (int stp=0; stp<AnodeStps; stp++) {
+      VolAnode = new TGeoVolume**[AnodeRows];
+      for (int stp=0; stp<AnodeRows; stp++) {
 	VolAnode[stp] = new TGeoVolume*[AnodeCols];
 	z0 += AnodeDZ[stp][0]/2;
 	double x0 = -AnodeLength/2;
@@ -1611,13 +1701,13 @@ int MUSIC_Simulator::run()
       // Arrays where the energy loss in each strip will be saved. The
       // last column (AnodeCols) is reserved for the summed energy
       // loss in the other columns for that strip.
-      DeltaEB_ave = new double*[AnodeStps];// average beam energy loss
-      DeltaEB = new double*[AnodeStps];    // beam
-      DeltaEL = new double*[AnodeStps];    // light
-      DeltaEH = new double*[AnodeStps];    // heavy
-      DeltaED1 = new double*[AnodeStps];   // decay daughter1
-      DeltaED2 = new double*[AnodeStps];   // decay daughter2
-      for (int stp=0; stp<AnodeStps; stp++) {
+      DeltaEB_ave = new double*[AnodeRows];// average beam energy loss
+      DeltaEB = new double*[AnodeRows];    // beam
+      DeltaEL = new double*[AnodeRows];    // light
+      DeltaEH = new double*[AnodeRows];    // heavy
+      DeltaED1 = new double*[AnodeRows];   // decay daughter1
+      DeltaED2 = new double*[AnodeRows];   // decay daughter2
+      for (int stp=0; stp<AnodeRows; stp++) {
 	DeltaEB_ave[stp] = new double[AnodeCols+1];
 	DeltaEB[stp] = new double[AnodeCols+1];
 	DeltaEL[stp] = new double[AnodeCols+1];
@@ -1637,9 +1727,9 @@ int MUSIC_Simulator::run()
       DeltaE_EvaR = new double**[MaxEva];
       DeltaE_EvaP = new double**[MaxEva];
       for (int er=0; er<MaxEva; er++) {	
-	DeltaE_EvaR[er] = new double*[AnodeStps];
-	DeltaE_EvaP[er] = new double*[AnodeStps];
-	for (int stp=0; stp<AnodeStps; stp++) {	  
+	DeltaE_EvaR[er] = new double*[AnodeRows];
+	DeltaE_EvaP[er] = new double*[AnodeRows];
+	for (int stp=0; stp<AnodeRows; stp++) {	  
 	  DeltaE_EvaR[er][stp] = new double[AnodeCols+1];
 	  DeltaE_EvaP[er][stp] = new double[AnodeCols+1];
 	  for (int col=0; col<AnodeCols+1; col++) {
@@ -1649,21 +1739,21 @@ int MUSIC_Simulator::run()
 	}
       }
 
-    } // end if (AnodeStps>0 && AnodeCols>0)
+    } // end if (AnodeRows>0 && AnodeCols>0)
     
-    HCTB = new TH2F("HCTB","Beam", AnodeStps,-0.5, AnodeStps-0.5, ELossBins,0,MaxELoss);
+    HCTB = new TH2F("HCTB","Beam", AnodeRows,-0.5, AnodeRows-0.5, ELossBins,0,MaxELoss);
     HCTB->GetXaxis()->SetTitle("Strip index (in AnodeGeometry file)");
     HCTB->GetXaxis()->CenterTitle();
     HCTB->GetYaxis()->SetTitle("Energy loss [MeV]");
     HCTB->GetYaxis()->CenterTitle(); 
     
-    HCT = new TH2F("HCT","Column traces", AnodeStps,-0.5, AnodeStps-0.5, ELossBins,0,MaxELoss);
+    HCT = new TH2F("HCT","Column traces", AnodeRows,-0.5, AnodeRows-0.5, ELossBins,0,MaxELoss);
     HCT->GetXaxis()->SetTitle("Strip index (in AnodeGeometry file)");
     HCT->GetXaxis()->CenterTitle();
     HCT->GetYaxis()->SetTitle("Energy loss [MeV]");
     HCT->GetYaxis()->CenterTitle(); 
     
-    HPT = new TH2F("HPT","Particle traces", AnodeStps,-0.5, AnodeStps-0.5, ELossBins,0,MaxELoss);
+    HPT = new TH2F("HPT","Particle traces", AnodeRows,-0.5, AnodeRows-0.5, ELossBins,0,MaxELoss);
     HPT->GetXaxis()->SetTitle("Strip index (in AnodeGeometry file)");
     HPT->GetXaxis()->CenterTitle();
     HPT->GetYaxis()->SetTitle("Energy loss [MeV]");
@@ -1682,7 +1772,7 @@ int MUSIC_Simulator::run()
 ///////////////////////////////////////////////////////////////////////////////////
 // Create the beam particle object.
 ///////////////////////////////////////////////////////////////////////////////////
-void MUSIC_Simulator::SetBeamParticle(string Name, int Color, string ELossFile)
+void MUSIC_Simulator::SetBeamParticle(string Name, int Color, string ELossFile, float dEdxScale)
 {
 #if 1
   // Use the nuclide finder object to determine the mass and atomic
@@ -1773,7 +1863,8 @@ void MUSIC_Simulator::SetDecayDaughter2(string Name, int Color, string ELossFile
 // Currently particles restricted to one medium (gas).
 ///////////////////////////////////////////////////////////////////////////////////
 void MUSIC_Simulator::SetEvapResAndPart(string ResName, string ResELossFile, int ResColor, 
-					string ParName,	string ParELossFile, int ParColor)
+					string ParName,	string ParELossFile, int ParColor,
+					float dEdxScaleRes, float dEdxScalePar)
 {
   if (CurEva>=MaxEva) {
     cout << "Warning: No more than " << MaxEva << " evaporation particles allowed." << endl;  
@@ -1786,7 +1877,7 @@ void MUSIC_Simulator::SetEvapResAndPart(string ResName, string ResELossFile, int
   ParName += std::to_string(CurEva);
   EvaP[CurEva] = new Particle(ParName, mp, Zp, false /*SaveTrajectories off*/);
   EvaP[CurEva]->SetTrajectoryAtt((short)ParColor);
-  EvaP[CurEva]->SetMedium(ParELossFile);
+  EvaP[CurEva]->SetMedium(ParELossFile, dEdxScalePar);
   EvaP[CurEva]->Print();
   TrackEvaP[CurEva]->SetName(ParName.c_str());
   TrackEvaP[CurEva]->SetMainColor(ParColor);
@@ -1798,7 +1889,7 @@ void MUSIC_Simulator::SetEvapResAndPart(string ResName, string ResELossFile, int
   int Zr = NuF->GetZ(ResName);
   EvaR[CurEva] = new Particle(ResName, mr, Zr, false /*SaveTrajectories off*/);
   EvaR[CurEva]->SetTrajectoryAtt((short)ResColor);
-  EvaR[CurEva]->SetMedium(ResELossFile);
+  EvaR[CurEva]->SetMedium(ResELossFile, dEdxScaleRes);
   EvaR[CurEva]->Print();  
   TrackEvaR[CurEva]->SetName(ResName.c_str());
   TrackEvaR[CurEva]->SetMainColor(ResColor);
@@ -2318,7 +2409,7 @@ void MUSIC_Simulator::Simulate(int StpID,
   if (PrintLevel>0)
     BeamCopy->Print();
   PropagateParticle(BeamCopy, 0, MaxTime, UserStep, DeltaEB_ave);
-  for (int stp=0; stp<AnodeStps; stp++)
+  for (int stp=0; stp<AnodeRows; stp++)
     for (int col=0; col<AnodeCols+1; col++) 
       TraceUB[col]->SetPoint(stp, stp, DeltaEB_ave[stp][col]);
   
@@ -2332,7 +2423,7 @@ void MUSIC_Simulator::Simulate(int StpID,
   // beam direction is parallel to the z-axis).
   MinZ = 0;
   MaxZ = AnodeDZ[0][0];
-  for (int stp=1; stp<AnodeStps; stp++) {
+  for (int stp=1; stp<AnodeRows; stp++) {
     MinZ += AnodeDZ[stp-1][0];
     MaxZ += AnodeDZ[stp][0];
     if (AnodeStpID[stp][0]==StpID)
@@ -2391,7 +2482,7 @@ void MUSIC_Simulator::Simulate(int StpID,
     // Reset values of TTree branches
     
     // Reset the detector response
-    for (int stp=0; stp<AnodeStps; stp++) 
+    for (int stp=0; stp<AnodeRows; stp++) 
       for (int col=0; col<AnodeCols+1; col++) {
 	DeltaEB[stp][col] = 0;
 	DeltaEL[stp][col] = 0;
@@ -2406,7 +2497,7 @@ void MUSIC_Simulator::Simulate(int StpID,
     double Ebeam = ctf.Kb;
     // If the user specified a KbFWHM>0 change the beam energy
     // assuming a gaussian distribution.
-    if (ctf.KbFWHM>0) {
+    if (ctf.KbFWHM>0.0) {
       Gaussian->SetParameters(1.0, 0.0, ctf.KbFWHM/2.355);
       Ebeam += Gaussian->GetRandom();
     }
@@ -2445,7 +2536,7 @@ void MUSIC_Simulator::Simulate(int StpID,
       // reaction point to the entrance of MUSIC
       Beam->GetX(tf,xf,yf,zf);
       PropagateParticle(Beam, evt, MaxTime, -UserStep, DeltaEB);
-      for (int stp=0; stp<AnodeStps; stp++)
+      for (int stp=0; stp<AnodeRows; stp++)
 	for (int col=0; col<AnodeCols+1; col++) 
 	  TraceB[col]->SetPoint(stp, stp, DeltaEB[stp][col]);
       Beam->GetX(ti,xi,yi,zi);                      // <- This is not a mistake
@@ -2458,7 +2549,7 @@ void MUSIC_Simulator::Simulate(int StpID,
 	// evaporated (light) particle (p,n,4He)
 	EvaP[er]->GetX(ti,xi,yi,zi);
 	PropagateParticle(EvaP[er], evt, MaxTime, UserStep, DeltaE_EvaP[er]);
-	for (int stp=0; stp<AnodeStps; stp++)
+	for (int stp=0; stp<AnodeRows; stp++)
 	  for (int col=0; col<AnodeCols+1; col++) 
 	    TraceEP[er][col]->SetPoint(stp, stp, DeltaE_EvaP[er][stp][col]);
 	EvaP[er]->GetX(tf,xf,yf,zf);
@@ -2471,7 +2562,7 @@ void MUSIC_Simulator::Simulate(int StpID,
 	// evaporation residue (heavy particle)
 	EvaR[er]->GetX(ti,xi,yi,zi);
 	PropagateParticle(EvaR[er], evt, MaxTime, UserStep, DeltaE_EvaR[er]);
-	for (int stp=0; stp<AnodeStps; stp++)
+	for (int stp=0; stp<AnodeRows; stp++)
 	  for (int col=0; col<AnodeCols+1; col++) 
 	    TraceER[er][col]->SetPoint(stp, stp, DeltaE_EvaR[er][stp][col]);
 	EvaR[er]->GetX(tf,xf,yf,zf);
@@ -2487,7 +2578,7 @@ void MUSIC_Simulator::Simulate(int StpID,
     else {
       Beam->Copy(BeamInit);
       PropagateParticle(Beam, evt, MaxTime, UserStep, DeltaEB);
-      for (int stp=0; stp<AnodeStps; stp++)
+      for (int stp=0; stp<AnodeRows; stp++)
 	for (int col=0; col<AnodeCols+1; col++) 
 	  TraceB[col]->SetPoint(stp, stp, DeltaEB[stp][col]);
       cout << "Warninig: reaction energetically not allowed for event " << evt 
@@ -2562,7 +2653,7 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
   double theta = 0;
   double phi = 0;
 
-  NEvents = PhiSteps*ThSteps*AnodeStps;
+  NEvents = PhiSteps*ThSteps*AnodeRows;
    
   // Create new traces and trajectories (objectrs) for visualizing the
   // detector response
@@ -2580,7 +2671,7 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
     BeamCopy->Print();
   //  DeltaEB_ave = PropagateParticle(BeamCopy, ctf.Kb, MaxTime, UserStep); 
   PropagateParticle(BeamCopy, ctf.Kb, MaxTime, UserStep, DeltaEB_ave);
-  for (int stp=0; stp<AnodeStps; stp++)
+  for (int stp=0; stp<AnodeRows; stp++)
     for (int col=0; col<AnodeCols+1; col++) 
       TraceUB[col]->SetPoint(stp, stp, DeltaEB_ave[stp][col]);
   //  PrintCompoundEexc(ctf.Kb, DeltaEB_ave);
@@ -2599,7 +2690,7 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
   // beam direction is parallel to the z-axis).
   MinZ = 0;
   MaxZ = AnodeDZ[0][0];
-  for (int stp=1; stp<AnodeStps; stp++) {
+  for (int stp=1; stp<AnodeRows; stp++) {
     MinZ += AnodeDZ[stp-1][0];
     MaxZ += AnodeDZ[stp][0];
     if (AnodeStpID[stp][0]==StpID)
@@ -2645,7 +2736,7 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
       // HPT->Draw();
       
       // Reset the detector response
-      for (int stp=0; stp<AnodeStps; stp++) 
+      for (int stp=0; stp<AnodeRows; stp++) 
 	for (int col=0; col<AnodeCols+1; col++) {
 	  DeltaEB[stp][col] = 0;
 	  DeltaEL[stp][col] = 0;
