@@ -294,14 +294,7 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt, int reacStp, int UpdateVi
   
   // Reset the SimTree leaves (already reset in Simulate())
   if (SimTree!=0) {
-    // cathode = 0;
-    // strip0 = 0;
-    // strip17 = 0;
-    this->reacStp = reacStp;
-    // for (int stp=0; stp<ExpAnodeStps; stp++) {
-    //   de_l[stp] = 0;
-    //   de_r[stp] = 0;
-    // }
+     this->reacStp = reacStp;
   }
   
   // Loop over the anode's rows and columns
@@ -1486,7 +1479,7 @@ int MUSIC_Simulator::run()
   SetAnode(ctf.AnodeGeom, 90, ctf.ELossBins, ctf.MaxELoss);
 
   // Beam
-  SetBeamParticle(ctf.beamName, kBlack, ctf.SRIMbeam);
+  SetBeamParticle(ctf.beamName, kBlack, ctf.SRIMbeam, ctf.dEdxScaleBeam);
   // Target
   SetTargetParticle(ctf.target);
   // Compound particle
@@ -1501,7 +1494,7 @@ int MUSIC_Simulator::run()
 		      ctf.colorEvap[i],
 		      ctf.dEdxScaleRes[i],
 		      ctf.dEdxScaleEvap[i]);
-
+  
   if (ctf.Method==0) {
     // Simulate events for one strip or generate trace data base (see below)
     Simulate(ctf.strip,
@@ -1782,7 +1775,7 @@ void MUSIC_Simulator::SetBeamParticle(string Name, int Color, string ELossFile, 
   Beam = new Particle(Name, m, Z, false /*SaveTrajectories off*/);
   Beam->SetTrajectoryAtt((short)Color);
   // Currently, this simulation is restricted to one medium (gas) in MUSIC.
-  Beam->SetMedium(ELossFile);
+  Beam->SetMedium(ELossFile, dEdxScale);
   TrackBeam->SetName(Name.c_str());
   TrackBeam->SetMainColor(Color);
   TrackBeam->SetPickable(kTRUE);
@@ -2347,7 +2340,7 @@ void MUSIC_Simulator::SetTargetParticle(string Name)
 // 7. Compute detector response (i.e. DE for beam + light + heavy + etc)
 // 8. Display trace and particle trajecories
 ///////////////////////////////////////////////////////////////////////////////////
-void MUSIC_Simulator::Simulate(int StpID,
+void MUSIC_Simulator::Simulate(int StpID, // set to -1 for unreacted beam
 			       int NEvents,
 			       double MaxTime,
 			       double UserStep,
@@ -2503,34 +2496,45 @@ void MUSIC_Simulator::Simulate(int StpID,
     }
     SetInitialKinematics(Ebeam);
 
-    // 2. Within the selected strip randomly select the position at
-    // which the beam particle interacts with the target and calculate
-    // the kinetic energy at the reaction point
-    this->zr = Rdm->Uniform(MinZ, MaxZ);
-    double Kbr = Beam->GetFinalEnergy(0, Ebeam, this->zr, 1E-3/*cm*/);
-    double TOF = Beam->GetTimeOfFlight(0);
-    if (PrintLevel>0)
-      Log << "Kbr = " << Kbr << "  zr = " << this->zr << "  tof = " << TOF << endl;
-
-    // 3. Set the kinematics of all particles at the reaction point
-    int ReacAllowed = SetReactionKinematics(Kbr, this->zr, TOF);
-    // Check conservation of 4-momentum
-    if (PrintLevel>0) {
-      Log << "Conservation of 4-momentum at reaction point (zr)" 
-	   << endl;
-      FourVector Pi("initial 4-momemtum (lab)",0,0,0,0);
-      Pi += Beam->GetP() + Target->GetP();
-      FourVector Pf("final 4-momentum (lab)",0,0,0,0);
-      for (int er=0; er<CurEva; er++) {
-	if (!EvaR[er]->DoNotPropagate)
-	  Pf += EvaR[er]->GetP();
-	if (!EvaP[er]->DoNotPropagate)
-	  Pf += EvaP[er]->GetP();
+    int ReacAllowed = 0;
+    double Kbr = 0;
+    double TOF = 0;
+    if (StpID>-1) {
+      // 2. Within the selected strip randomly select the position at
+      // which the beam particle interacts with the target and calculate
+      // the kinetic energy at the reaction point
+      this->zr = Rdm->Uniform(MinZ, MaxZ);
+      Kbr = Beam->GetFinalEnergy(0, Ebeam, this->zr, 1E-3/*cm*/);
+      TOF = Beam->GetTimeOfFlight(0);
+      if (PrintLevel>0)
+	Log << "Kbr = " << Kbr << "  zr = " << this->zr << "  tof = " << TOF << endl;
+      
+      // 3. Set the kinematics of all particles at the reaction point
+      ReacAllowed = SetReactionKinematics(Kbr, this->zr, TOF);
+      // Check conservation of 4-momentum
+      if (PrintLevel>0) {
+	Log << "Conservation of 4-momentum at reaction point (zr)" 
+	    << endl;
+	FourVector Pi("initial 4-momemtum (lab)",0,0,0,0);
+	Pi += Beam->GetP() + Target->GetP();
+	FourVector Pf("final 4-momentum (lab)",0,0,0,0);
+	for (int er=0; er<CurEva; er++) {
+	  if (!EvaR[er]->DoNotPropagate)
+	    Pf += EvaR[er]->GetP();
+	  if (!EvaP[er]->DoNotPropagate)
+	    Pf += EvaP[er]->GetP();
+	}
+	Pi.Print(Log);
+	Pf.Print(Log);
       }
-      Pi.Print(Log);
-      Pf.Print(Log);
     }
-
+    else {
+      // Update the kinematics label and then draw it
+      LabelKine->Clear();
+      LabelKine->AddText("Kinematics");
+      LabelKine->AddText(Form("beam: K=%.2f MeV", Ebeam));
+    }
+    
     if (ReacAllowed) {
       // 4. Propagate the beam particle (backwards in time) from the
       // reaction point to the entrance of MUSIC
@@ -2542,10 +2546,10 @@ void MUSIC_Simulator::Simulate(int StpID,
       Beam->GetX(ti,xi,yi,zi);                      // <- This is not a mistake
       TrackBeam->SetOrigin(xi,yi,zi);
       TrackBeam->SetVector(xf-xi,yf-yi,zf-zi);
-
+      
       // 5-6. Propagate outgoing particles (evaporation residues)
       for (int er=0; er<CurEva; er++) {
-
+	
 	// evaporated (light) particle (p,n,4He)
 	EvaP[er]->GetX(ti,xi,yi,zi);
 	PropagateParticle(EvaP[er], evt, MaxTime, UserStep, DeltaE_EvaP[er]);
@@ -2558,7 +2562,7 @@ void MUSIC_Simulator::Simulate(int StpID,
 	xfl[er] = xf;
 	yfl[er] = yf;
 	zfl[er] = zf;
-
+	
 	// evaporation residue (heavy particle)
 	EvaR[er]->GetX(ti,xi,yi,zi);
 	PropagateParticle(EvaR[er], evt, MaxTime, UserStep, DeltaE_EvaR[er]);
@@ -2575,17 +2579,19 @@ void MUSIC_Simulator::Simulate(int StpID,
 	TrackEvaR[er]->SetVector(xf-xi,yf-yi,zf-zi);
       }
     }
+    // reaction not allowed, only propagate beam
     else {
-      Beam->Copy(BeamInit);
+      //Beam->Copy(BeamInit);
       PropagateParticle(Beam, evt, MaxTime, UserStep, DeltaEB);
       for (int stp=0; stp<AnodeRows; stp++)
 	for (int col=0; col<AnodeCols+1; col++) 
 	  TraceB[col]->SetPoint(stp, stp, DeltaEB[stp][col]);
-      cout << "Warninig: reaction energetically not allowed for event " << evt 
-	   << " (Kbr= " << Kbr << " MeV)." << endl;
-      Log << "Warninig: reaction energetically not allowed for event " << evt 
-	   << " (Kbr= " << Kbr << " MeV)." << endl;
-      
+      if (StpID>-1) {
+	cout << "Warninig: reaction energetically not allowed for event " << evt 
+	     << " (Kbr= " << Kbr << " MeV)." << endl;
+	Log << "Warninig: reaction energetically not allowed for event " << evt 
+	    << " (Kbr= " << Kbr << " MeV)." << endl;
+      }
     }
     
     // 7. Compute detector response (i.e. DE for beam + light + heavy)
@@ -2594,7 +2600,7 @@ void MUSIC_Simulator::Simulate(int StpID,
     //    ROOTfile->cd();
     SimTree->Fill();
     
-
+    
     // 8. Display trace and particle trajecories
     if (UpdateVis)
       UpdateVisuals(evt, Kbr, this->zr, TOF, Wait);
@@ -2866,16 +2872,20 @@ void MUSIC_Simulator::UpdateVisuals(int evt, double Kbr, double zr, double TOF, 
   TraceUB[AnodeCols]->Draw("l same");
   TraceB[AnodeCols]->Draw("l same");
   for (int er=0; er<CurEva; er++) {
-    TraceER[er][AnodeCols]->Draw("l same");
-    TraceEP[er][AnodeCols]->Draw("l same");
+    if (TraceER[er][AnodeCols]->GetN()>0)
+      TraceER[er][AnodeCols]->Draw("l same");
+    if (TraceEP[er][AnodeCols]->GetN()>0)
+      TraceEP[er][AnodeCols]->Draw("l same");
   }
   Trace[AnodeCols]->Draw("*l same");  // total detector response
   if (LegPart->GetNRows()==0) {
     LegPart->AddEntry(Trace[AnodeCols], "All particles", "l");
     LegPart->AddEntry(TraceB[AnodeCols], "beam", "l");
     for (int er=0; er<CurEva; er++) {
-      LegPart->AddEntry(TraceEP[er][AnodeCols], EvaP[er]->Name.c_str(), "l");
-      LegPart->AddEntry(TraceER[er][AnodeCols], EvaR[er]->Name.c_str(), "l");
+      if (TraceEP[er][AnodeCols]->GetN()>0)
+	LegPart->AddEntry(TraceEP[er][AnodeCols], EvaP[er]->Name.c_str(), "l");
+      if (TraceER[er][AnodeCols]->GetN()>0)
+	LegPart->AddEntry(TraceER[er][AnodeCols], EvaR[er]->Name.c_str(), "l");
     }
   }
   LegPart->Draw();
