@@ -1,4 +1,5 @@
 {
+  gStyle->SetOptStat(0);
   TCanvas* can = new TCanvas("can","A=98 beams");
   can->Divide(2);
   
@@ -24,6 +25,13 @@
   hZr->Draw("same");
   hNb->Draw("same");
 
+  auto leg = new TLegend(0.1,0.7,0.48,0.9);
+  leg->AddEntry(hNb,"98Nb","l");
+  leg->AddEntry(hZr,"98Zr","l");
+  leg->AddEntry(hY,"98Y","l");
+  leg->AddEntry(hSr,"98Sr","l");
+  leg->Draw();
+  
 #if 0
   TFile* f2Sr = new TFile("stp0stp1_98Sr.root");
   TH1F* h2Sr = (TH1F*)f2Sr->Get("h2Sr");
@@ -64,4 +72,5 @@
   h3Zr->Draw("same");
   h3Nb->Draw("same");
 
+  
 }
