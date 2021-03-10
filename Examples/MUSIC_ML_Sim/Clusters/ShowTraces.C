@@ -62,7 +62,7 @@ using namespace std;
 int ShowTraces(){
 
   int cluster = 1;
-  int select_strip = 2;  // Select strip number to be analyzed (0-9), -1 to skip
+  int select_strip = 4;  // Select strip number to be analyzed (0-9), -1 to skip
   bool savehisto = false;
   
   TH1F* hstp = new TH1F("hstp","",18,-0.5,17.5);

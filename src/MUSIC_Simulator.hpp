@@ -90,7 +90,7 @@ public:
   void SetStripEnergyResolution(float Sigma/*MeV*/);
   void SetTargetParticle(std::string Name);
   void Simulate(int StpID, int NEvents, double MaxTime, double UserStep, int UpdateVis=0, int Wait=0,
-		std::string FileName="", std::string FileOpt="recreate");
+		TFile* ROOTfile=0);
   void Simulate(int StpID, double ThCMMin, double ThCMMax, int ThSteps, double PhiCMMin, 
 		double PhiCMMax, int PhiSteps, double MaxTime, double UserStep, int Wait=0);
   void WriteTraces(char* FileName);
@@ -99,7 +99,7 @@ public:
 private:
   int CheckMemoryUsage(int Print=0);
   void ComputeDetectorResponse(int event, int reacStp, int UpdateVis);
-  void CreateTracesAndTrajectories(int NEvents);
+  void CreateTracesAndTrajectories();
   void DrawMUSIC(TEveManager* gEve, short Transparency /*From 0 to 100*/);
   void InitCTF();
   TTree* InitTree(TFile* ROOTfile, std::string FileOpt);
@@ -240,6 +240,10 @@ private:
   // Log file
   std::ofstream Log;
 
+  // CSV file  (used for MUSIC ML project)
+  std::ofstream CSV;
+  long mainentry;
+
   // To be used in CheckMemory
   TSystem* gSystem;
   float MaxMemory;
@@ -274,18 +278,22 @@ private:
     std::string* SRIMevap = new std::string[MaxNumEvapPart];
     float* dEdxScaleEvap = new float[MaxNumEvapPart];
     int* colorEvap = new int[MaxNumEvapPart];
-    double Kb;  // MeV - Energy of the beam after the Ti window and degrader (if any)
-    double KbFWHM=0;  // MeV - Beam energy spread (full-width half maximum)
-    int strip;      // Strip where reaction takes place
-    double Eres=0; // MeV - Strip energy resolution (larger values increase signal randomness)
-    int NEvents;  // Number of simulated events (recommendation: keep it <1000)
-    int Wait;       // 1 - canvas waits for user's double click, 0 - no wait
-    int Update;     // 1 - update visuals for every event, 0 - don't
-    double MaxTime;   // ns - max time for an event
+    double Kb;       // MeV - Energy of the beam after the Ti window and degrader (if any)
+    double KbFWHM=0; // MeV - Beam energy spread (full-width half maximum)
+    int strip;       // Strip where reactions takes place
+    int stripFirst;  // First strip where reactions takes place
+    int stripLast;   // Last strip where reactions takes place
+    double Eres=0;   // MeV - Strip energy resolution (larger values increase signal randomness)
+    int NEvents;     // Number of simulated events (recommendation: keep it <1000)
+    int Wait;        // 1 - canvas waits for user's double click, 0 - no wait
+    int Update;      // 1 - update visuals for every event, 0 - don't
+    double MaxTime;  // ns - max time for an event
     double SimStep;  // cm - simulation steps size
-    int Method;     // Select the simulation method: 0 - Simulate, 1 - GenerateTraceDatabase
+    int Method;      // Select the simulation method: 0 - Simulate, 1 - GenerateTraceDatabase
     std::string FileName;
     std::string FileOpt;
+    std::string CSVfile;
+    int reacClass;
     int PrintOpt=0;
   };
   

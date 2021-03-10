@@ -1,59 +1,59 @@
 {
-  //  gSystem->SetOptStats(0);
+  //  disesteem->SetOptStats(0);
   // gSystem->SetObjectStat(0)
-  TFile f1("traces_an_stp6_500Torr_lise.root");
+  TFile f1("traces_an_stp6_220Torr_lise_79MeV.root");
   TTree* simt1 = (TTree*)f1.Get("simt");
   
-  TFile f2("traces_ap_stp6_500Torr_lise.root");
+  TFile f2("traces_ap_stp6_220Torr_lise_79MeV.root");
   TTree* simt2 = (TTree*)f2.Get("simt");
 
-  TFile f3("traces_aa_stp6_500Torr_lise.root");
+  TFile f3("traces_aa_stp6_220Torr_lise_79MeV.root");
   TTree* simt3 = (TTree*)f3.Get("simt");
 
-  TFile f4("unreacted_37Cl_500Torr_lise.root");
+  TFile f4("unreacted_37Cl_220Torr_lise_79MeV.root");
   TTree* simt4 = (TTree*)f4.Get("simt");
 
 #if 0
-  gROOT->ProcessLine("simt1->Draw(\"(de_l[6]+de_r[6]):(de_l[7]+de_r[7])>>han(200,0,14,200,0,14)\")");
+  gROOT->ProcessLine("simt1->Draw(\"(de_l[6]+de_r[6]):(de_l[7]+de_r[7])>>han(200,0,5,200,0,5)\")");
   han->SetMarkerStyle(7);
   han->SetMarkerColor(4);
   han->SetTitle("");
-  han->GetXaxis()->SetTitle("#DeltaE_6+#DeltaE_7 [MeV]");
+  han->GetXaxis()->SetTitle("#DeltaE_7+#DeltaE_8 [MeV]");
   
-  gROOT->ProcessLine("simt2->Draw(\"(de_l[6]+de_r[6]):(de_l[7]+de_r[7])>>hap(200,0,14,200,0,14)\")");
+  gROOT->ProcessLine("simt2->Draw(\"(de_l[6]+de_r[6]):(de_l[7]+de_r[7])>>hap(200,0,5,200,0,5)\")");
   hap->SetMarkerStyle(7);
   hap->SetMarkerColor(2);
 
-  gROOT->ProcessLine("simt3->Draw(\"(de_l[6]+de_r[6]):(de_l[7]+de_r[7])>>haa(200,0,14,200,0,14)\")");
+  gROOT->ProcessLine("simt3->Draw(\"(de_l[6]+de_r[6]):(de_l[7]+de_r[7])>>haa(200,0,5,200,0,5)\")");
   haa->SetMarkerStyle(7);
-  haa->SetMarkerColor(3);
+  haa->SetMarkerColor(921);
 
-  gROOT->ProcessLine("simt4->Draw(\"(de_l[6]+de_r[6]):(de_l[7]+de_r[7])>>hub(200,0,14,200,0,14)\")");
+  gROOT->ProcessLine("simt4->Draw(\"(de_l[6]+de_r[6]):(de_l[7]+de_r[7])>>hub(200,0,5,200,0,5)\")");
   hub->SetMarkerStyle(7);
-  hub->SetMarkerColor(921);
+  hub->SetMarkerColor(1);
 #endif
 
 #if 1
-    gROOT->ProcessLine("simt1->Draw(\"(de_l[6]+de_r[6]+de_l[7]+de_r[7]):(de_l[8]+de_r[8]+de_l[9]+de_r[9])>>han(200,10,14,200,10,14)\")");
-  han->SetMarkerStyle(7);
+    gROOT->ProcessLine("simt1->Draw(\"(de_l[6]+de_r[6]+de_l[7]+de_r[7]):(de_l[8]+de_r[8]+de_l[9]+de_r[9])>>han(200,4,6.5,200,4,6.5)\")");
+  han->SetMarkerStyle(20);
   han->SetMarkerColor(4);
   han->SetTitle("");
-  han->GetYaxis()->SetTitle("#DeltaE_{7}+#DeltaE_{8} [MeV]");
+  han->GetYaxis()->SetTitle("#DeltaE_{8}+#DeltaE_{9} [MeV]");
   han->GetYaxis()->CenterTitle();
-  han->GetXaxis()->SetTitle("#DeltaE_{9}+#DeltaE_{10} [MeV]");
+  han->GetXaxis()->SetTitle("#DeltaE_{10}+#DeltaE_{11} [MeV]");
   han->GetXaxis()->CenterTitle();
   
-  gROOT->ProcessLine("simt2->Draw(\"(de_l[6]+de_r[6]+de_l[7]+de_r[7]):(de_l[8]+de_r[8]+de_l[9]+de_r[9])>>hap(200,10,14,200,10,14)\")");
-  hap->SetMarkerStyle(7);
+  gROOT->ProcessLine("simt2->Draw(\"(de_l[6]+de_r[6]+de_l[7]+de_r[7]):(de_l[8]+de_r[8]+de_l[9]+de_r[9])>>hap(200,4,6.5,200,4,6.5)\")");
+  hap->SetMarkerStyle(20);
   hap->SetMarkerColor(2);
 
-  gROOT->ProcessLine("simt3->Draw(\"(de_l[6]+de_r[6]+de_l[7]+de_r[7]):(de_l[8]+de_r[8]+de_l[9]+de_r[9])>>haa(200,10,14,200,10,14)\")");
-  haa->SetMarkerStyle(7);
-  haa->SetMarkerColor(3);
+  gROOT->ProcessLine("simt3->Draw(\"(de_l[6]+de_r[6]+de_l[7]+de_r[7]):(de_l[8]+de_r[8]+de_l[9]+de_r[9])>>haa(200,4,6.5,200,4,6.5)\")");
+  haa->SetMarkerStyle(20);
+  haa->SetMarkerColor(921);
 
-  gROOT->ProcessLine("simt4->Draw(\"(de_l[6]+de_r[6]+de_l[7]+de_r[7]):(de_l[8]+de_r[8]+de_l[9]+de_r[9])>>hub(200,10,14,200,10,14)\")");
-  hub->SetMarkerStyle(7);
-  hub->SetMarkerColor(921);
+  gROOT->ProcessLine("simt4->Draw(\"(de_l[6]+de_r[6]+de_l[7]+de_r[7]):(de_l[8]+de_r[8]+de_l[9]+de_r[9])>>hub(200,4,6.5,200,4,6.5)\")");
+  hub->SetMarkerStyle(20);
+  hub->SetMarkerColor(1);
 #endif
 
   han->Draw();

@@ -207,7 +207,7 @@ for (int i=0; i<AnodeRows; i++) {
   Kb = Beam->GetFinalEnergy(0, Kb, AnodeDZ[i][0], 0.001);
   CME_end = Kb*mt/(mt+mb);
   cout << i << "\t" << AnodeDZ[i][0]<< " cm \t" << CME_beg << "\t"
-       << CME_beg - CME_end << " MeV \t(Kb=" 
+       << CME_beg - CME_end << " MeV \t(Kb_out=" 
        << Kb << " MeV)"<< endl;
   // The excitation energy at the end of this segment is the excitation energy at the beginnig
   // of the next segment.
@@ -310,10 +310,10 @@ int MUSIC_Simulator::CheckMemoryUsage(int Print)
     }
     delete Memory;
   }
-  else
-    cout << "> Warning: CheckMemoryUsage(), gSystem pointer not set. "
-	 << "Use SetROOTSystemPointer() method."
-	 << endl;
+  // else
+  //   cout << "> Warning: CheckMemoryUsage(), gSystem pointer not set. "
+  // 	 << "Use SetROOTSystemPointer() method."
+  // 	 << endl;
   return status;
 }
 
@@ -393,9 +393,9 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt, int reacStp, int UpdateVi
   if (Trace!=0) {
     for (int col=0; col<AnodeCols+1; col++) {
       if (col==AnodeCols) 
-	Trace[col]->Write(Form("Trace%d",evt), TObject::kOverwrite);
+	Trace[col]->Write(Form("Trace_s%d_e%d",reacStp,evt), TObject::kOverwrite);
       else
-	Trace[col]->Write(Form("Trace%dc%d",evt,col), TObject::kOverwrite);
+	Trace[col]->Write(Form("Trace_s%d_c%d_e%d",reacStp,col,evt), TObject::kOverwrite);
     }
   }
   
@@ -407,7 +407,7 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt, int reacStp, int UpdateVi
 // Create energy loss trace for this event (detector response). The last column has
 // the energy loss deposited in the whole strip.
 ///////////////////////////////////////////////////////////////////////////////////
-void MUSIC_Simulator::CreateTracesAndTrajectories(int NEvents)
+void MUSIC_Simulator::CreateTracesAndTrajectories()
 {
 #if 1
   // Look for the first strip in which all the column colors are
@@ -629,7 +629,7 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
     
   // Create new traces and trajectories (objectrs) for visualizing the
   // detector response
-  CreateTracesAndTrajectories(NEvents);
+  CreateTracesAndTrajectories();
   
   cout << "Generating " << NEvents << " MUSIC traces ..." << endl;
   
@@ -900,6 +900,10 @@ int MUSIC_Simulator::loadCtrlFile(char* fileName)
 	ctf.MaxELoss = atof(ParVal.c_str());
       else if (ParName=="strip")
 	ctf.strip = atoi(ParVal.c_str());
+      else if (ParName=="stripFirst")
+	ctf.stripFirst = atoi(ParVal.c_str());
+      else if (ParName=="stripLast")
+	ctf.stripLast = atoi(ParVal.c_str());      
       else if (ParName=="Eres")
 	ctf.Eres = atof(ParVal.c_str());
 
@@ -1007,8 +1011,13 @@ int MUSIC_Simulator::loadCtrlFile(char* fileName)
       	ctf.FileName = ParVal;
       else if (ParName=="FileOpt")
       	ctf.FileOpt = ParVal;
+      else if (ParName=="CSVfile")
+      	ctf.CSVfile = ParVal;
       else if (ParName=="PrintOpt")
-      	ctf.PrintOpt = atoi(ParVal.c_str());      
+      	ctf.PrintOpt = atoi(ParVal.c_str());
+      else if (ParName=="reacClass")
+	ctf.reacClass = atoi(ParVal.c_str());
+ 
       else
 	cout << "musicsim warning: control file parameter \'" << ParName << "\' not recognized."
 	     << endl;
@@ -1053,18 +1062,22 @@ void MUSIC_Simulator::InitCTF()
       ctf.dEdxScaleEvap[i] = 1.0;
       ctf.colorEvap[i] = 616;
     }
-    ctf.Kb = 100;      // MeV - Energy of the beam after the Ti window and degrader (if any)
-    ctf.KbFWHM = 0.0;  // MeV - Beam energy spread (full-width half maximum)
-    ctf.strip = 5;     // Strip where reaction takes place
-    ctf.Eres = 0.0;    // MeV - Strip energy resolution (larger values increase signal randomness)
-    ctf.NEvents = 10;  // Number of simulated events (recommendation: keep it <1000)
-    ctf.Wait = 1;      // 1 - canvas waits for user's double click, 0 - no wait
-    ctf.Update = 1;    // 1 - update visuals for every event, 0 - don't
+    ctf.Kb = 100;       // MeV - Energy of the beam after the Ti window and degrader (if any)
+    ctf.KbFWHM = 0.0;   // MeV - Beam energy spread (full-width half maximum)
+    ctf.strip = 5;      // Strip where reactions takes place
+    ctf.stripFirst = -1; // Strip where reactions takes place
+    ctf.stripLast = -1;  // Strip where reactions takes place
+    ctf.Eres = 0.0;     // MeV - Strip energy resolution (larger values increase signal randomness)
+    ctf.NEvents = 10;   // Number of simulated events (recommendation: keep it <1000)
+    ctf.Wait = 1;       // 1 - canvas waits for user's double click, 0 - no wait
+    ctf.Update = 1;     // 1 - update visuals for every event, 0 - don't
     ctf.MaxTime = 2000.0; // ns - max time for an event
     ctf.SimStep = 0.001;  // cm - simulation steps size
-    ctf.Method = 0;    // Select the simulation method: 0 - Simulate, 1 - GenerateTraceDatabase
+    ctf.Method = 0;     // Select the simulation method: 0 - Simulate, 1 - GenerateTraceDatabase
     ctf.FileName = "";
     ctf.FileOpt = "";
+    ctf.CSVfile = "";
+    ctf.reacClass = -1;
     ctf.PrintOpt = 0;
     return;
 }
@@ -1487,6 +1500,8 @@ void MUSIC_Simulator::ResetBranches()
 /////////////////////////////////////////////////////////////////////////////////////////////////
 int MUSIC_Simulator::run()
 {
+  TFile* ROOTfile = 0;
+
   //SetROOTSystemPointer(gSystem);
   // TEveManager for drawing 3D particle trajectories
   Eve = new TEveManager(960, 1018, kTRUE, "V");
@@ -1533,17 +1548,53 @@ int MUSIC_Simulator::run()
 		      ctf.colorEvap[i],
 		      ctf.dEdxScaleRes[i],
 		      ctf.dEdxScaleEvap[i]);
+
+  if (!ctf.FileName.empty()) {
+    
+    // ROOT file where the traces and SimTree will be saved    
+    if (!ctf.FileName.empty()) {
+      ROOTfile = new TFile(ctf.FileName.c_str(), ctf.FileOpt.c_str());
+      // Tree similar to the one used for experimental data
+      SimTree = InitTree(ROOTfile, ctf.FileOpt);
+      
+      TDirectory* trace_dir = 0;
+      if (ROOTfile) {
+	if (ctf.FileOpt=="update" || ctf.FileOpt=="UPDATE") {
+	  trace_dir = (TDirectory*)ROOTfile->Get("traces");
+	  trace_dir->cd();
+	}
+	else {
+	  trace_dir = ROOTfile->mkdir("traces");
+	  trace_dir->cd();
+	}
+      }
+    }
+  }
   
   if (ctf.Method==0) {
+    // Create new traces and trajectories (objectrs) for visualizing the
+    // detector response
+    CreateTracesAndTrajectories();
+    
     // Simulate events for one strip or generate trace data base (see below)
-    Simulate(ctf.strip,
-	     ctf.NEvents,
-	     ctf.MaxTime,
-	     ctf.SimStep,
-	     ctf.Update,
-	     ctf.Wait,
-	     ctf.FileName,
-	     ctf.FileOpt);
+    if (ctf.stripFirst==-1)
+      ctf.stripFirst = ctf.strip;
+    if (ctf.stripLast==-1)
+      ctf.stripLast = ctf.strip;
+
+    if (!ctf.CSVfile.empty()) {
+      CSV.open(ctf.CSVfile.c_str());
+      mainentry = 0;
+    }
+    
+    for (int stpID=ctf.stripFirst; stpID<=ctf.stripLast; stpID++)
+      Simulate(stpID,
+	       ctf.NEvents,
+	       ctf.MaxTime,
+	       ctf.SimStep,
+	       ctf.Update,
+	       ctf.Wait,
+	       ROOTfile);
   }
   else if (ctf.Method==1) {
     cout << "musicsim warning: GenerateTraceDataBase method not ready." << endl;
@@ -1552,6 +1603,13 @@ int MUSIC_Simulator::run()
     // 			  PhiCMMin, PhiCMMax, PhiSteps,
     // 			  MaxTime, SimStep, Update, Wait);
   }
+
+  if (ROOTfile && SimTree) {
+    ROOTfile->cd();
+    SimTree->Write("", TObject::kSingleKey);
+    ROOTfile->Close();
+  }
+
   
   return 0;
 }
@@ -2385,8 +2443,7 @@ void MUSIC_Simulator::Simulate(int StpID, // set to -1 for unreacted beam
 			       double UserStep,
 			       int UpdateVis, 
 			       int Wait,
-			       string FileName,
-			       string FileOpt)
+			       TFile* ROOTfile)
 {
   double ti,xi,yi,zi, tf,xf,yf,zf;
 #if 1
@@ -2404,6 +2461,7 @@ void MUSIC_Simulator::Simulate(int StpID, // set to -1 for unreacted beam
   long double Frac[11] = {0.01, 0.05, 0.1, 0.2, 0.3, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0};
   int FIndex = 0;
 
+#if 0
   // ROOT file where the traces will be saved
   TFile* ROOTfile = 0;
   
@@ -2424,18 +2482,20 @@ void MUSIC_Simulator::Simulate(int StpID, // set to -1 for unreacted beam
       trace_dir->cd();
     }
   }
-
+  
   // Create new traces and trajectories (objectrs) for visualizing the
   // detector response
-  CreateTracesAndTrajectories(NEvents);
+  CreateTracesAndTrajectories();
 
-
+#endif
   
-  cout << "Simulating " << NEvents << " MUSIC traces ... " << endl;
+  cout << "Simulating " << NEvents << " MUSIC traces for strip " << StpID << " ... " << endl;
  
   // Get the average beam energy loss and print the exc energy of the
   // compound nucleus sampled by each strip.
   SetInitialKinematics(ctf.Kb); // ideal case with no energy straggling
+
+#if 1
   Particle* BeamInit = new Particle("beam init");  
   BeamInit->Copy(Beam);
   Particle* BeamCopy = new Particle("beam copy");
@@ -2448,6 +2508,7 @@ void MUSIC_Simulator::Simulate(int StpID, // set to -1 for unreacted beam
       TraceUB[col]->SetPoint(stp, stp, DeltaEB_ave[stp][col]);
   
   // PrintEnergetics(ctf.Kb, DeltaEB_ave);
+#endif
   
   //-------------------------------------------------------------------------------
   // Some kinematic variables
@@ -2642,8 +2703,13 @@ void MUSIC_Simulator::Simulate(int StpID, // set to -1 for unreacted beam
     ComputeDetectorResponse(evt, StpID, UpdateVis);
     //    ROOTfile->cd();
     SimTree->Fill();
-    
-    
+    if (CSV.is_open()) {
+      CSV << mainentry << "," << strip0 << ",";
+      for (int i=0; i<16; i++) 
+	CSV << de_l[i] << "," << de_r[i] << ",";
+      CSV << strip17 << "," << cathode << "," << ctf.reacClass << "," << reacStp << endl;
+      mainentry++;
+    }
     // 8. Display trace and particle trajecories
     if (UpdateVis)
       UpdateVisuals(evt, Kbr, this->zr, TOF, Wait);
@@ -2666,12 +2732,6 @@ void MUSIC_Simulator::Simulate(int StpID, // set to -1 for unreacted beam
   cout << "Envent for-loop concluded." << endl;
   CheckMemoryUsage(1);
 
-
-  if (ROOTfile) {
-    ROOTfile->cd();
-    SimTree->Write("", TObject::kSingleKey);
-    ROOTfile->Close();
-  }
 
 #endif
   return;
@@ -2706,7 +2766,7 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
    
   // Create new traces and trajectories (objectrs) for visualizing the
   // detector response
-  CreateTracesAndTrajectories(NEvents);
+  CreateTracesAndTrajectories();
   
   cout << "Simulating MUSIC traces ... " << endl;
   

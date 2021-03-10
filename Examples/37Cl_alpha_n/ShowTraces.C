@@ -2,13 +2,13 @@
 
   int NTraces = 100;
   int stp = 6;
-  int Kb = 98; // MeV
-  int pressure = 500;
+  int Kb = 79; // MeV
+  int pressure = 220;
   
-  TFile* TFap = new TFile("traces_ap_stp6_500Torr_lise.root");
-  TFile* TFaa = new TFile("traces_aa_stp6_500Torr_lise.root");
-  TFile* TFan = new TFile("traces_an_stp6_500Torr_lise.root");
-  TFile* TFub = new TFile("unreacted_37Cl_500Torr_lise.root");
+  TFile* TFap = new TFile("traces_ap_stp6_220Torr_lise_79MeV.root");
+  TFile* TFaa = new TFile("traces_aa_stp6_220Torr_lise_79MeV.root");
+  TFile* TFan = new TFile("traces_an_stp6_220Torr_lise_79MeV.root");
+  TFile* TFub = new TFile("unreacted_37Cl_220Torr_lise_79MeV.root");
 
   TGraph** Tub = new TGraph*[NTraces];
   for (int n=0; n<NTraces; n++) {
@@ -24,9 +24,9 @@
   for (int n=0; n<NTraces; n++) {
     Taa[n] = (TGraph*)TFaa->Get(Form("traces/Trace%d",n));
     if (Taa[n]!=0) {
-      Taa[n]->SetLineColor(kGreen);
+      Taa[n]->SetLineColor(kGray+1);
       Taa[n]->SetLineWidth(2);
-      Taa[n]->SetMarkerColor(kGreen);
+      Taa[n]->SetMarkerColor(kGray+1);
     }
   }
 
@@ -53,15 +53,15 @@
   
 
   TCanvas* Can = new TCanvas("Can","Traces",0,0,1000,800);
-  TH2F* HELoss = new TH2F("HELoss",Form("^{37}Cl+^{4}He (He at %d Torr, E_{b} = %d MeV)",pressure, Kb),
-			  18,-0.5,18-0.5, 400,2.0,7.0);
+  TH2F* HELoss = new TH2F("HELoss",Form("^{37}Cl+^{4}He (He at %d Torr, E_{beam} = %d MeV)",pressure, Kb),
+			  18,-0.5,18-0.5, 400,1.0,5.0);
   HELoss->SetStats(0);
   Can->SetGrid();
   HELoss->GetXaxis()->SetTitle("Strip number (as in AnodeGeometry file)");
   HELoss->GetXaxis()->CenterTitle();
   HELoss->GetYaxis()->SetTitle("#DeltaE [MeV]");
   HELoss->GetYaxis()->CenterTitle(); 
-  HELoss->GetXaxis()->SetLimits(0,18);
+  HELoss->GetXaxis()->SetLimits(1,18);
   //  HELoss->GetYaxis()->SetLimits(0.0,10);
   HELoss->Draw();
   for (int n=0; n<NTraces; n++) 

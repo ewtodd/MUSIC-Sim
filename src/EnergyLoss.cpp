@@ -521,7 +521,24 @@ bool EnergyLoss::LoadSRIMFile(string FileName)
 ////////////////////////////////////////////////////////////////////////////////////////
 // Reads the stopping power as function of incident ion energy from a table generated
 // with the program LISE++. The dEdx are given in MeV/u so the mass is needed calculate
-// the actual energy lost. The 11 columns are (with repeated information, i.e. Energy):
+// the actual energy lost. The 14 columns are (with repeated information, i.e. Energy):
+// LISE++ ver 15.8.1 (03-FEB-2021)
+// 0 - Energy (MeV/u)
+// 1 - [He-base] F.Hubert et al, AD&ND Tables 46(1990)
+// 2 - Energy (MeV/u)
+// 3 - [H -base] J.F.Ziegler et al,Pergamon Press,NY(low energy)
+// 4 - Energy (MeV/u)
+// 5 - ATIMA 1.2 LS-theory (recommended for high energy)
+// 6 - Energy (MeV/u)
+// 7 - ATIMA 1.2 without LS-correction
+// 8 - Energy (MeV/u)
+// 9 - ATIMA 1.4 H.Weick, improved mean charge formula for HI
+// 10- Energy (MeV/u)
+// 11- electrical component of [1] - J.F.Ziegler et al
+// 12- Energy (MeV/u)
+// 13- nuclear component of [1] - J.F.Ziegler et al
+//
+// For previous LISE++ versions the 11 columns are:
 // 0 - Energy (MeV/u)
 // 1 - [He-base] F.Hubert et al, AD&ND Tables 46(1990)1 (MeV/u)
 // 2 - Energy (MeV/u)
@@ -533,17 +550,19 @@ bool EnergyLoss::LoadSRIMFile(string FileName)
 // 8 - Energy (MeV/u)
 // 8 - electrical component of [1] - J.F.Ziegler et al (MeV/u)
 // 9 - Energy (MeV/u)
-// 10 - nuclear component of [1] - J.F.Ziegler et al	
+// 10 - nuclear component of [1] - J.F.Ziegler et al
+//
 ////////////////////////////////////////////////////////////////////////////////////////
 bool EnergyLoss::LoadLISEFile(string FileName)
 {
+  CSVrow row('\t');
   double IonEnergy, dEdx_e, dEdx_n;
   string aux, unit;
   int str_counter=0;
-  ifstream Read(FileName.c_str());
+  ifstream FiledEdx(FileName.c_str());
   this->FileName = FileName;
   last_point = 0;
-  if(!Read.is_open()) {
+  if(!FiledEdx.is_open()) {
     cout << "*** EnergyLoss Error: LISE file " << FileName << " was not found." << endl;
     GoodELossFile = 0;
   } 
@@ -551,12 +570,12 @@ bool EnergyLoss::LoadLISEFile(string FileName)
     GoodELossFile = 1;
     Energy_in_range = 1;        
     //First line is column description, then count the number of lines.
-    getline(Read, aux);
+    getline(FiledEdx, aux);
     do {
-      getline(Read, aux);
+      getline(FiledEdx, aux);
       str_counter++;
-    } while (!Read.eof());
-    Read.close();
+    } while (!FiledEdx.eof());
+    FiledEdx.close();
     
     str_counter--;  // is this needed?
     points = str_counter;
@@ -569,11 +588,14 @@ bool EnergyLoss::LoadLISEFile(string FileName)
  
     // Go to the begining of the file and read it again to now save the info in the
     // newly created arrays.
-    Read.open(FileName.c_str());
-    getline(Read, aux);
+    FiledEdx.open(FileName.c_str());
+    getline(FiledEdx, aux);
     for (int p=0; p<points; p++) {
-      Read >> IonEnergy >> aux >> aux >> dEdx_e >> aux >> aux >> aux >> aux >> aux >> aux >> aux >> dEdx_n;
-      //cout << p << " " << IonEnergy << " MeV" << " " << dEdx_e << " " << dEdx_n << endl;
+      row.readNextRow(FiledEdx);
+      IonEnergy = atof(row[0].c_str());
+      dEdx_e = atof(row[3].c_str());
+      dEdx_n = atof(row[row.size()-2].c_str());
+      //cout << p << " " << IonEnergy << " MeV" << " " << dEdx_e << " " << dEdx_n << row.size() << endl;
       IonEnergy *= IonMass/931.494102; // convert from MeV/u to MeV
       dEdx_e *= 1000;    // convert from MeV/micron to MeV/mm
       dEdx_n *= 1000;    // convert from MeV/micron to MeV/mm

@@ -20,7 +20,7 @@ SRIMevap0	 ../../LISE/files/4He_in_HeGas_600Torr_293K.lise
 SRIMres0	 ../../LISE/files/93Sr_in_HeGas_600Torr_293K.lise
 dEdxScaleBeam	 1.0			   Beam stopping power scale factor
 dEdxScaleRes0	 1.0			   Heavy particle stopping power scale factor	
-NEvents		 1000			   Number of events simulated
+NEvents		 100000			   Number of events simulated
 Wait		 0			   Wait between simulated events? 1=yes, 0=no
 Update		 0			   Update graphics between simulated events? 1=yes, 0=no
 MaxTime		 2000			   Maximum time for an event [ns]

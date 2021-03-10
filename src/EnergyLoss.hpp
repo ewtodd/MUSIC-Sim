@@ -28,6 +28,7 @@ Author: Daniel Santiago-Gonzalez
 #include <fstream>
 #include <string.h>
 #include <TGraph.h>
+#include "CSVrow.hpp"
 
 class EnergyLoss{
 public:

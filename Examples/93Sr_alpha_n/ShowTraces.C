@@ -9,6 +9,7 @@
   TFile* TFaa = new TFile("traces_aa_stp6_600Torr_lise.root");
   TFile* TFan = new TFile("traces_an_stp6_600Torr_lise.root");
   TFile* TFub = new TFile("unreacted_93Sr_600Torr_lise.root");
+  TFile* TFubY = new TFile("unreacted_93Y_600Torr_lise.root");
 
   TGraph** Tub = new TGraph*[NTraces];
   for (int n=0; n<NTraces; n++) {
@@ -17,6 +18,16 @@
       Tub[n]->SetLineColor(kBlack);
       Tub[n]->SetLineWidth(2);
       Tub[n]->SetMarkerColor(kBlack);
+    }
+  }
+
+  TGraph** TubY = new TGraph*[NTraces];
+  for (int n=0; n<NTraces; n++) {
+    TubY[n] = (TGraph*)TFubY->Get(Form("traces/Trace%d",n));
+    if (TubY[n]!=0) {
+      TubY[n]->SetLineColor(kGray+1);
+      TubY[n]->SetLineWidth(2);
+      TubY[n]->SetMarkerColor(kGray+1);
     }
   }
 
@@ -76,11 +87,16 @@
   for (int n=0; n<NTraces; n++) 
     if (Tub[n]!=0)
       Tub[n]->Draw("l same");
+  for (int n=0; n<NTraces; n++) 
+    if (TubY[n]!=0)
+      TubY[n]->Draw("l same");
 
+  
   TLegend* Leg = new TLegend(0.174,0.156,0.346,0.374);
   Leg->AddEntry(Tan[0], "(#alpha,n)", "l");
   Leg->AddEntry(Tap[0], "(#alpha,p)", "l");
   Leg->AddEntry(Taa[0], "(#alpha,#alpha)", "l");
-  Leg->AddEntry(Tub[0], "beam", "l");
+  Leg->AddEntry(Tub[0], "93Sr beam", "l");
+  Leg->AddEntry(TubY[0], "93Y beam", "l");
   Leg->Draw();
 }
