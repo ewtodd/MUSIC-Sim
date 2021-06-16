@@ -2394,7 +2394,7 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
     LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
 			    Light->Name.c_str(), Light->GetKE(), Light->GetTheta()*180/pi,
 			    Light->GetPhi()*180/pi));
-  LabelKine->AddText(Form("#theta_{c.m.}=%.1f deg", this->theta_CM[0]*180/pi));
+  LabelKine->AddText(Form("#theta_{c.m.}=%.1f deg", this->theta_CM[0]/*deg*/));
 
 
 
