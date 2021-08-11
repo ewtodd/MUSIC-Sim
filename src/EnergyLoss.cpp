@@ -594,8 +594,14 @@ bool EnergyLoss::LoadLISEFile(string FileName)
       row.readNextRow(FiledEdx);
       IonEnergy = atof(row[0].c_str());
       dEdx_e = atof(row[3].c_str());
+      // DSG 2021-08-10: The nuclear stopping power is always the last
+      // column in the LISE energy loss tables. There is an additional
+      // tab (\t, separating character in the 'row' CSV element, see
+      // line 558) which makes row.size() larger by 1. Therefore, to
+      // access the last meaningful column we need row.size()-2.
       dEdx_n = atof(row[row.size()-2].c_str());
-      //cout << p << " " << IonEnergy << " MeV" << " " << dEdx_e << " " << dEdx_n << row.size() << endl;
+      // cout << p << " " << IonEnergy << " MeV" << " " << dEdx_e << " " << dEdx_n << " "
+      // 	   << row.size() << endl;
       IonEnergy *= IonMass/931.494102; // convert from MeV/u to MeV
       dEdx_e *= 1000;    // convert from MeV/micron to MeV/mm
       dEdx_n *= 1000;    // convert from MeV/micron to MeV/mm
