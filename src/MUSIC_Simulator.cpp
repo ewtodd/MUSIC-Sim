@@ -89,8 +89,8 @@ MUSIC_Simulator::MUSIC_Simulator()
   VolAnode = 0;
   
   // Pseudo-random number generator.
-  Rdm = new TRandom3();
-  Rdm->SetSeed();     // Provide a seed that depends on the time.
+  Rdm = new TRandom3(0);
+  cout << "seed " << Rdm->GetSeed() << "\nradn " << Rdm->Uniform(-1.0,1.0) <<endl;
   
   // Arrays for the TTree
   SimTree = 0;
@@ -373,9 +373,7 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt, int reacStp, int UpdateVi
 
       if (ctf.Eres>0.0) {
 	// Adding randomness to the energy loss to mimic experimental jitter
-	Gaussian->SetRange(-10*ctf.Eres, 10*ctf.Eres);
-	Gaussian->SetParameters(1.0, 0.0, ctf.Eres);
-	DeltaE += Gaussian->GetRandom();
+	DeltaE += Rdm->Gaus(0.0, ctf.Eres);
       }	
 
       if (DeltaE>Ethresh && col<AnodeCols)
@@ -2650,11 +2648,8 @@ void MUSIC_Simulator::Simulate(int StpID, // set to -1 for unreacted beam
     double Ebeam = ctf.Kb;
     // If the user specified a KbFWHM>0 change the beam energy
     // assuming a gaussian distribution.
-    if (ctf.KbFWHM>0.0) {
-      Gaussian->SetRange(-10*ctf.KbFWHM/2.355, 10*ctf.KbFWHM/2.355);
-      Gaussian->SetParameters(1.0, 0.0, ctf.KbFWHM/2.355);
-      Ebeam += Gaussian->GetRandom();
-    }
+    if (ctf.KbFWHM>0.0)
+      Ebeam += Rdm->Gaus(0.0, ctf.KbFWHM/2.355);
     this->Kbi = Ebeam;
     SetInitialKinematics(Ebeam);
 

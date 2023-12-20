@@ -1,28 +1,28 @@
 {
 
   int NTraces = 100;
-  int stp = 4;
+  int stp = 3;
   int Kb = 350; // MeV
   int pressure = 600;
   
-  TFile* TFaa = new TFile(Form("Traces_Stp%d_aa_%dMeV_%dTorr.root",stp,Kb,pressure));
-  TFile* TFap = new TFile(Form("Traces_Stp%d_ap_%dMeV_%dTorr.root",stp,Kb,pressure));
-  TFile* TFan = new TFile(Form("Traces_Stp%d_an_%dMeV_%dTorr.root",stp,Kb,pressure));
-  TFile* TFab = new TFile(Form("Traces_Stp%d_aa_%dMeV_%dTorr.root",18,Kb,pressure));
+  TFile* TFaa = new TFile(Form("traces_aa_st%d_500Torr_lise.root",stp));
+  //  TFile* TFap = new TFile(Form("Traces_Stp%d_ap_%dMeV_%dTorr.root",stp));
+  TFile* TFan = new TFile(Form("traces_an_st%d_500Torr_lise.root",stp));
+  //  TFile* TFab = new TFile(Form("Traces_Stp%d_aa_%dMeV_%dTorr.root",18));
 
-  TGraph** Tab = new TGraph*[NTraces];
-  for (int n=0; n<NTraces; n++) {
-    Tab[n] = (TGraph*)TFab->Get(Form("traces/Trace%d",n));
-    if (Tab[n]!=0) {
-      Tab[n]->SetLineColor(kBlack);
-      Tab[n]->SetLineWidth(2);
-      Tab[n]->SetMarkerColor(kBlack);
-    }
-  }
+  // TGraph** Tab = new TGraph*[NTraces];
+  // for (int n=0; n<NTraces; n++) {
+  //   Tab[n] = (TGraph*)TFab->Get(Form("traces/Trace%d",n));
+  //   if (Tab[n]!=0) {
+  //     Tab[n]->SetLineColor(kBlack);
+  //     Tab[n]->SetLineWidth(2);
+  //     Tab[n]->SetMarkerColor(kBlack);
+  //   }
+  // }
 
   TGraph** Taa = new TGraph*[NTraces];
   for (int n=0; n<NTraces; n++) {
-    Taa[n] = (TGraph*)TFaa->Get(Form("traces/Trace%d",n));
+    Taa[n] = (TGraph*)TFaa->Get(Form("traces/Trace_s%d_e%d",stp,n));
     if (Taa[n]!=0) {
       Taa[n]->SetLineColor(kGreen);
       Taa[n]->SetLineWidth(2);
@@ -30,19 +30,19 @@
     }
   }
   
-  TGraph** Tap = new TGraph*[NTraces];
-  for (int n=0; n<NTraces; n++) {
-    Tap[n] = (TGraph*)TFap->Get(Form("traces/Trace%d",n));
-    if (Tap[n]!=0) {
-      Tap[n]->SetLineColor(kRed);
-      Tap[n]->SetLineWidth(2);
-      Tap[n]->SetMarkerColor(kRed);
-    }
-  }
+  // TGraph** Tap = new TGraph*[NTraces];
+  // for (int n=0; n<NTraces; n++) {
+  //   Tap[n] = (TGraph*)TFap->Get(Form("traces/Trace%d",n));
+  //   if (Tap[n]!=0) {
+  //     Tap[n]->SetLineColor(kRed);
+  //     Tap[n]->SetLineWidth(2);
+  //     Tap[n]->SetMarkerColor(kRed);
+  //   }
+  // }
   
   TGraph** Tan = new TGraph*[NTraces];
   for (int n=0; n<NTraces; n++) {
-    Tan[n] = (TGraph*)TFan->Get(Form("traces/Trace%d",n));
+    Tan[n] = (TGraph*)TFan->Get(Form("traces/Trace_s%d_e%d",stp,n));
     if (Tan[n]!=0) {
       Tan[n]->SetLineColor(kBlue);
       Tan[n]->SetLineWidth(2);

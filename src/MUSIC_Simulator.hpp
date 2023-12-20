@@ -112,7 +112,9 @@ private:
   void UpdateVisuals(int event, double Kbr, double zr, double TOF, int Wait=0);
   
   // Useful random number.
-  TRandom3* Rdm;
+  //  TRandom3* Rdm;
+  TRandom* Rdm;
+  
 
   // Particle related stuff.
   Particle* Beam;
