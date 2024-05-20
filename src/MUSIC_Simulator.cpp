@@ -1117,7 +1117,7 @@ void MUSIC_Simulator::InitCTF()
     ctf.Wait = 1;       // 1 - canvas waits for user's double click, 0 - no wait
     ctf.Update = 1;     // 1 - update visuals for every event, 0 - don't
     ctf.MaxTime = 2000.0; // ns - max time for an event
-    ctf.SimStep = 0.001;  // cm - simulation steps size
+    ctf.SimStep = 0.001;  // cm - simulation steps size (0.001 cm = 10 um)
     ctf.Method = 0;     // Select the simulation method: 0 - Simulate, 1 - GenerateTraceDatabase
     ctf.FileName = "";
     ctf.FileOpt = "";
@@ -2154,6 +2154,10 @@ void MUSIC_Simulator::SetPrintLevel(int Level/*0-2*/)
 // Private method, to be used in an event loop. Establish the kinematics of the  //
 // particles at the reaction point. If theta_CM and phi_CM are both -1 (default  //
 // values) then their values are assigned randomly.                              //
+//                                                                               //
+// VALIDATION: 2023-12-20 MLA and DSG looked at the musicsim.log file and        //
+// compared the results of this method with LISE++ kinematics calculator. The    //
+// results were consistent and suggest that this method is working fine.         //
 ///////////////////////////////////////////////////////////////////////////////////
 int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, double tof/*ns*/,
 					   double theta_CM, double phi_CM)
@@ -2223,21 +2227,24 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
   for (int er=0; er<CurEva; er++) {
     double ml = EvaP[er]->Mass;
     double mh = EvaR[er]->Mass;
-    double Qvalue = sqrt(Ptot*Ptot) - ml - mh;
+    double Q0 = mb + mt - ml - mh;
+    double EneAvail = sqrt(Ptot*Ptot) - ml - mh;
     if (PrintLevel>0) {
       Log << "--- Reaction -------------------------------------------------------" << endl;
       if (er>0)
 	reacstr = EvaR[er-1]->Name + "->" + EvaP[er]->Name + "+" + EvaR[er]->Name;      
       Log << "reac=" << er << ": " << reacstr << endl;
-      Log << "Qvalue=" << Qvalue << " MeV" << endl;
+      Log << "Q0=" << Q0 << " MeV" << endl;
+      Log << "Energy avail.=" << EneAvail << " MeV" << endl;
+      
       
     }
-    if (Qvalue<0 /*&& er>0*/) {
+    if (EneAvail<0 /*&& er>0*/) {
       // The present reaction is not energetically allowed
       // Propagate the previuos evap res and exit the loop
       //EvaR[er-1]->DoNotPropagate = false;
       if (PrintLevel>0)
-	Log << "Negative Qvalue!\nThe following particles will NOT be propagated:" << endl; 
+	Log << "Negative EneAvail!\nThe following particles will NOT be propagated:" << endl; 
       for (int i=er; i<CurEva; i++) {
 	EvaP[i]->DoNotPropagate = true;
 	EvaR[i]->DoNotPropagate = true;
@@ -2246,7 +2253,7 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
       }
       break;
     }
-    // When the Qvalue is positive, assume that the reactio or decay
+    // When the EneAvail is positive, assume that the reactio or decay
     // took place and stop the propagation of the previous evaporation
     // residue
     else {
@@ -2256,7 +2263,7 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
     // if (er==CurEva-1)
     //   EvaR[er]->DoNotPropagate = false;
     
-    double Ex = Rdm->Uniform(/*0.0*/Qvalue/2, Qvalue);
+    double Ex = Rdm->Uniform(0.0/*EneAvail/2*/, EneAvail);
     //Ex = 0; // Forcing g.s. of evaporation residue
 #if 0
     // Warning: for 17F(alpha,p) only!!

@@ -553,7 +553,9 @@ bool EnergyLoss::LoadSRIMFile(string FileName)
 // 10 - nuclear component of [1] - J.F.Ziegler et al
 //
 ////////////////////////////////////////////////////////////////////////////////////////
-bool EnergyLoss::LoadLISEFile(string FileName)
+bool EnergyLoss::LoadLISEFile(string FileName,
+			      int dEdxColumn // 3=Ziegler (default), 5=ATIMA, etc (see above).
+			      )
 {
   CSVrow row('\t');
   double IonEnergy, dEdx_e, dEdx_n;
@@ -593,7 +595,7 @@ bool EnergyLoss::LoadLISEFile(string FileName)
     for (int p=0; p<points; p++) {
       row.readNextRow(FiledEdx);
       IonEnergy = atof(row[0].c_str());
-      dEdx_e = atof(row[3].c_str());
+      dEdx_e = atof(row[dEdxColumn].c_str());
       // DSG 2021-08-10: The nuclear stopping power is always the last
       // column in the LISE energy loss tables. There is an additional
       // tab (\t, separating character in the 'row' CSV element, see

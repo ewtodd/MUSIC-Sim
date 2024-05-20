@@ -48,7 +48,7 @@ public:
   double GetTimeOfFlight();
   double GetTimeOfFlight(float InitialEnergy, float PathLength, float StepSize);
   bool LoadSRIMFile(std::string FileName);
-  bool LoadLISEFile(std::string FileName);
+  bool LoadLISEFile(std::string FileName, int dEdxColumn=5);
   void SetIonMass(float IonMass/*MeV/c^2*/);
 
 

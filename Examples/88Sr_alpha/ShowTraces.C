@@ -1,14 +1,17 @@
 {
 
-  int NTraces = 100;
+  int NTraces = 30;
   int stp = 3;
   int Kb = 350; // MeV
   int pressure = 600;
   
-  TFile* TFaa = new TFile(Form("traces_aa_st%d_500Torr_lise.root",stp));
+  // TFile* TFaa = new TFile(Form("traces_aa_st%d_500Torr_lise_ATIMA_HI.root",stp));
   //  TFile* TFap = new TFile(Form("Traces_Stp%d_ap_%dMeV_%dTorr.root",stp));
-  TFile* TFan = new TFile(Form("traces_an_st%d_500Torr_lise.root",stp));
+  // TFile* TFan = new TFile(Form("traces_an_st%d_500Torr_lise_ATIMA_HI.root",stp));
   //  TFile* TFab = new TFile(Form("Traces_Stp%d_aa_%dMeV_%dTorr.root",18));
+
+  TFile* TFaa = new TFile(Form("traces_aa_st%d_500Torr_lise_ATIMA.root",stp));
+  TFile* TFan = new TFile(Form("traces_an_st%d_500Torr_lise_ATIMA.root",stp));
 
   // TGraph** Tab = new TGraph*[NTraces];
   // for (int n=0; n<NTraces; n++) {
