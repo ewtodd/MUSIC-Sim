@@ -71,8 +71,8 @@ public:
 			     double ThCMMin, double ThCMMax, int ThSteps,
 			     double PhiCMMin, double PhiCMMax, int PhiSteps,
 			     double MaxTime, double UserStep, int UpdateEnabled=0, int Wait=0);
-  void SetAnode(std::string AnodeGeomFile, short Trans/*From 0 to 100*/, int ELossBins=400, 
-		float MaxELoss=5);
+  int SetAnode(std::string AnodeGeomFile, short Trans/*From 0 to 100*/, int ELossBins=400, 
+	       float MaxELoss=5);
   void SetBeamParticle(std::string Name, int Color, std::string ELossFile, float dEdxScale=1.0);
   //  void SetBeamSpot(double diameter);
   void SetCompoundParticle(std::string Name);
@@ -161,6 +161,7 @@ private:
   TGraph** TraceB;     // Beam trace
   TGraph*** TraceER;   // Evaporation residue traces
   TGraph*** TraceEP;   // Evaporated particle traces
+  bool tracesCreated;
 
   TH1F* TraceMult;
   int NTraces;
@@ -170,12 +171,6 @@ private:
   int NEvents;
 
   // Visual stuff
-  TEveStraightLineSet** TrajH;
-  TEveStraightLineSet** TrajD1;
-  TEveStraightLineSet** TrajD2;
-  TEveStraightLineSet** TrajL;
-  TEveStraightLineSet*** TrajEvaP;
-  TEveStraightLineSet*** TrajEvaR;
   TEveArrow* TrackBeam;
   TEveArrow** TrackEvaP;
   TEveArrow** TrackEvaR;

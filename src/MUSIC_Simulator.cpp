@@ -23,6 +23,7 @@ MUSIC_Simulator::MUSIC_Simulator()
   SegLength = 0;
   SegCMERange = 0;
   SegEexcRange = 0;
+  tracesCreated = false;
 
   // Initialize selected pointers to zero (non-zero pointers initialized below).
   Beam = 0;
@@ -90,7 +91,10 @@ MUSIC_Simulator::MUSIC_Simulator()
   
   // Pseudo-random number generator.
   Rdm = new TRandom3(0);
-  cout << "seed " << Rdm->GetSeed() << "\nradn " << Rdm->Uniform(-1.0,1.0) <<endl;
+  // 2024-05 DSG - confirmed that the initialization of TRdandom3(0)
+  // uses different seeds, and thus generates different random numbers
+  // every time the main program is run.
+
   
   // Arrays for the TTree
   SimTree = 0;
@@ -193,12 +197,12 @@ for (int i=0; i<AnodeRows; i++)
     
 // Center-of-mass energy at the beginning of MUSIC
 CMEMax = CME_beg = Kb*mt/(mt+mb);
-cout << "Full CM energy range covered in " << TotalLength << "cm:\n CME(beg) = " 
-<< CME_beg << " MeV";
+cout << "Center-of-mass energy range covered in " << TotalLength << "cm (MUSIC length):" << endl;
+cout << "  Ecom(initial) = " << CME_beg << " MeV" << endl;
 // Now get the CM energy at the end of the segments.
 Kb_min = Beam->GetFinalEnergy(0, Kb, TotalLength, 0.001);
 CMEMin = CME_end = Kb_min*mt/(mt+mb);
-cout << "   CME(end) = " << CME_end << " MeV" << endl;
+cout << "   Ecom(filan) = " << CME_end << " MeV" << endl;
 
 cout << "Energetics for each segment:" << endl;
    
@@ -353,7 +357,8 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt, int reacStp, int UpdateVi
     Log << "Compute detector response evt " << evt << endl;
   double Ethresh = 0.02;  // Right now the threshold for the multiplicity is hard-coded here.
   double DeltaE = 0;
-  TraceMult->Reset();
+  if (tracesCreated)
+    TraceMult->Reset();
   
   // Reset the SimTree leaves (already reset in Simulate())
   if (SimTree!=0) {
@@ -403,17 +408,19 @@ void MUSIC_Simulator::ComputeDetectorResponse(int evt, int reacStp, int UpdateVi
       // 	Gaussian->SetParameters(1.0, DeltaE, EneSigma);
       // 	DeltaE = Gaussian->GetRandom();
       // }
-      Trace[col]->SetPoint(row, row, DeltaE);
+      if (tracesCreated)
+	Trace[col]->SetPoint(row, row, DeltaE);
       // if (PrintLevel>0)
       // 	cout << row << " " << col << ": " << DeltaE << " = " << DeltaEB[row][col] << "+" 
       // 	     << DeltaEL[row][col] << "+" << DeltaEH[row][col] << "+" << DeltaED1[row][col] 
       // 	     << "+" << DeltaED2[row][col] << "+E.R."<< endl;
     }
-    TraceMult->Fill(row, mult);
+    if (tracesCreated)
+      TraceMult->Fill(row, mult);
   }
   
 
-  if (Trace!=0) {
+  if (tracesCreated) {
     for (int col=0; col<AnodeCols+1; col++) {
       if (col==AnodeCols) 
 	Trace[col]->Write(Form("Trace_s%d_e%d",reacStp,evt), TObject::kOverwrite);
@@ -546,7 +553,7 @@ void MUSIC_Simulator::CreateTracesAndTrajectories()
       }
     }
   }
-
+  tracesCreated = true;
 #endif
   return;
 }
@@ -564,14 +571,7 @@ void MUSIC_Simulator::DrawMUSIC(TEveManager* gEve, short Transparency /*From 0 t
       cout << "Warning: Transparency level must be from 0 to 100." << endl;
       Transparency = 0;
     }
-    
-    // From: http://root.cern.ch/root/html/TGeoManager.html#TGeoManager:CloseGeometry
-    // Closing geometry implies checking the geometry validity, fixing shapes
-    // with negative parameters (run-time shapes) building the cache manager,
-    // voxelizing all volumes, counting the total number of physical nodes and
-    // registring the manager class to the browser.
-    Geo->CloseGeometry();
-    
+      
     TopNode = new TEveGeoTopNode(Geo, Geo->GetTopNode());
     gEve->AddGlobalElement(TopNode);
     // Axes
@@ -668,10 +668,11 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
   //   BeamCopy->Print(Log);
   //  DeltaEB_ave = PropagateParticle(BeamCopy, ctf.Kb, MaxTime, UserStep); 
   PropagateParticle(BeamCopy, 0, MaxTime, UserStep, DeltaEB_ave);
-  for (int stp=0; stp<AnodeRows; stp++)
-    for (int col=0; col<AnodeCols+1; col++) 
-      TraceUB[col]->SetPoint(stp, stp, DeltaEB_ave[stp][col]);
-
+  if (tracesCreated)
+    for (int stp=0; stp<AnodeRows; stp++)
+      for (int col=0; col<AnodeCols+1; col++) 
+	TraceUB[col]->SetPoint(stp, stp, DeltaEB_ave[stp][col]);
+  
 
   //  PrintEnergetics(ctf.Kb, DeltaEB_ave);
 
@@ -854,7 +855,8 @@ void MUSIC_Simulator::GenerateTraceDatabase(string FileName,
 	  // 7. Compute detector response (i.e. DE for beam + light + heavy)
 	  // Clone the particle trajectories
 	  ComputeDetectorResponse(evt, stp_base, UpdateVis);
-	  SimTree->Fill();
+	  if (SimTree!=0)
+	    SimTree->Fill();
 	  
 	  // 8. Display trace and particle trajecories   
 	  if (UpdateVis) 
@@ -1320,7 +1322,7 @@ int MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxTime, 
 
   if (PrintLevel>0) {
     Log << "\n*******************************************************************"
-	<< "\nmusicsim::PropagateParticle ***************************************\n"
+	<< "\nmusicsim::PropagateParticle START *********************************\n"
 	<< PO->Name << endl;
   }
   if (PO->DoNotPropagate) {
@@ -1502,6 +1504,7 @@ int MUSIC_Simulator::PropagateParticle(Particle* PO, int Event, double MaxTime, 
 
   PO->SetX(tf,xf,yf,zf);
   PO->SetP(Ene, p_mag*cos(phi)*sin(theta), p_mag*sin(phi)*sin(theta), p_mag*cos(theta));
+  Log << "musicsim::PropagateParticle END ***********************************" << endl;
 #endif
   return 1;
 }
@@ -1552,42 +1555,51 @@ int MUSIC_Simulator::run()
 {
   TFile* ROOTfile = 0;
 
-  //SetROOTSystemPointer(gSystem);
-  // TEveManager for drawing 3D particle trajectories
-  Eve = new TEveManager(960, 1018, kTRUE, "V");
-  Eve->GetDefaultGLViewer()->SetClearColor(kWhite);
-  // 3D particle tracks
-  TrackBeam = new TEveArrow();
-  TrackEvaP = new TEveArrow*[MaxEva];
-  TrackEvaR = new TEveArrow*[MaxEva];
-  for (int er=0; er<MaxEva; er++) {
-    TrackEvaP[er] = new TEveArrow();
-    TrackEvaR[er] = new TEveArrow();
+  SetPrintLevel(ctf.PrintOpt);
+  Log << "musicsim::run() START *********************************************" << endl;
+  
+  if (ctf.Update) {
+    // TEveManager for drawing 3D particle trajectories
+    Eve = new TEveManager(960, 1018, kTRUE, "V");
+    Eve->GetDefaultGLViewer()->SetClearColor(kWhite);
+    // 3D particle tracks
+    TrackBeam = new TEveArrow();
+    TrackEvaP = new TEveArrow*[MaxEva];
+    TrackEvaR = new TEveArrow*[MaxEva];
+    for (int er=0; er<MaxEva; er++) {
+      TrackEvaP[er] = new TEveArrow();
+      TrackEvaR[er] = new TEveArrow();
+    }
+    
+    // Canvas and legends for traces
+    TraceCan = new TCanvas("TraceCan","Traces", 0, 0, 960, 1018);
+    TraceCan->Divide(2,2);
+    TraceCan->cd(1)->SetGrid();
+    TraceCan->cd(2)->SetGrid();
+    TraceCan->cd(3)->SetGrid();
+    TraceCan->cd(4)->SetGrid();
+    LegCol = new TLegend(0.692,0.616,0.826,0.861);
+    LegPart = new TLegend(0.692,0.616,0.826,0.861);
+    LabelKine = new TPaveText(0.152,0.679,0.437,0.875,"NDC");
+    
+    Log << "\tVisualization objects created." << endl;
   }
   
-  // Canvas and legends for traces
-  TraceCan = new TCanvas("TraceCan","Traces", 0, 0, 960, 1018);
-  TraceCan->Divide(2,2);
-  TraceCan->cd(1)->SetGrid();
-  TraceCan->cd(2)->SetGrid();
-  TraceCan->cd(3)->SetGrid();
-  TraceCan->cd(4)->SetGrid();
-  LegCol = new TLegend(0.692,0.616,0.826,0.861);
-  LegPart = new TLegend(0.692,0.616,0.826,0.861);
-  LabelKine = new TPaveText(0.152,0.679,0.437,0.875,"NDC");
-  
-  
-  SetPrintLevel(ctf.PrintOpt);
   SetStripEnergyResolution(ctf.Eres);
   // Geometry
-  SetAnode(ctf.AnodeGeom, 90, ctf.ELossBins, ctf.MaxELoss);
-
+  if (SetAnode(ctf.AnodeGeom, 90, ctf.ELossBins, ctf.MaxELoss)==0)
+    exit(EXIT_FAILURE);
+  Log << "\tAnode configured." << endl;
+  
   // Beam
   SetBeamParticle(ctf.beamName, kBlack, ctf.SRIMbeam, ctf.dEdxScaleBeam);
+  Log << "\tBeam particle configured." << endl;
   // Target
   SetTargetParticle(ctf.target);
+  Log << "\tTarget particle configured." << endl;
   // Compound particle
   SetCompoundParticle(ctf.compound);
+  Log << "\tCompound particle configured." << endl;
   // Evaporation residues and particles
   for (int i=0; i<ctf.NumEvapPart; i++)
     SetEvapResAndPart(ctf.res[i],
@@ -1598,33 +1610,35 @@ int MUSIC_Simulator::run()
 		      ctf.colorEvap[i],
 		      ctf.dEdxScaleRes[i],
 		      ctf.dEdxScaleEvap[i]);
-
+  Log << "\tEvaporated particles and residues configured." << endl;
+  
+  // ROOT file where the traces and SimTree will be saved    
   if (!ctf.FileName.empty()) {
+    ROOTfile = new TFile(ctf.FileName.c_str(), ctf.FileOpt.c_str());
+    // Tree similar to the one used for experimental data
+    SimTree = InitTree(ROOTfile, ctf.FileOpt);
     
-    // ROOT file where the traces and SimTree will be saved    
-    if (!ctf.FileName.empty()) {
-      ROOTfile = new TFile(ctf.FileName.c_str(), ctf.FileOpt.c_str());
-      // Tree similar to the one used for experimental data
-      SimTree = InitTree(ROOTfile, ctf.FileOpt);
-      
-      TDirectory* trace_dir = 0;
-      if (ROOTfile) {
-	if (ctf.FileOpt=="update" || ctf.FileOpt=="UPDATE") {
-	  trace_dir = (TDirectory*)ROOTfile->Get("traces");
-	  trace_dir->cd();
-	}
-	else {
+    TDirectory* trace_dir = 0;
+    if (ROOTfile) {
+      if (ctf.FileOpt=="update" || ctf.FileOpt=="UPDATE") {
+	trace_dir = (TDirectory*)ROOTfile->Get("traces");
+	trace_dir->cd();
+      }
+      else {
 	  trace_dir = ROOTfile->mkdir("traces");
 	  trace_dir->cd();
-	}
       }
     }
+    Log << "\tROOT file opened." << endl;
   }
   
   if (ctf.Method==0) {
     // Create new traces and trajectories (objectrs) for visualizing the
     // detector response
-    CreateTracesAndTrajectories();
+    if (ROOTfile!=0) {
+      CreateTracesAndTrajectories();
+      Log << "\tTraces and trajectories created." << endl;
+    }
     
     // Simulate events for one strip or generate trace data base (see below)
     if (ctf.stripFirst==-1)
@@ -1636,7 +1650,7 @@ int MUSIC_Simulator::run()
       CSV.open(ctf.CSVfile.c_str());
       mainentry = 0;
     }
-    
+    Log << "\tStarting simulation loop ..." << endl;
     for (int stpID=ctf.stripFirst; stpID<=ctf.stripLast; stpID++)
       Simulate(stpID,
 	       ctf.NEvents,
@@ -1645,6 +1659,11 @@ int MUSIC_Simulator::run()
 	       ctf.Update,
 	       ctf.Wait,
 	       ROOTfile);
+    Log << "\tSimulation loop ended." << endl;
+    if (CSV.is_open()) {
+      CSV.close();
+      cout << "Output CSV file: " << ctf.CSVfile << endl;
+    }
   }
   else if (ctf.Method==1) {
     cout << "musicsim warning: GenerateTraceDataBase method not ready." << endl;
@@ -1658,10 +1677,11 @@ int MUSIC_Simulator::run()
     ROOTfile->cd();
     SimTree->Write("", TObject::kSingleKey);
     ROOTfile->Close();
+    Log << "\tROOT file written." << endl;
   }
 
   
-  return 0;
+  return ctf.Update;
 }
 
 
@@ -1681,9 +1701,9 @@ int MUSIC_Simulator::run()
 // , where '#' is meant to be replaced by an integer and '#f' by a floating point 
 // number.
 ///////////////////////////////////////////////////////////////////////////////////
- void MUSIC_Simulator::SetAnode(string AnodeGeomFile, short Trans, int ELossBins, float MaxELoss)
+int MUSIC_Simulator::SetAnode(string AnodeGeomFile, short Trans, int ELossBins, float MaxELoss)
 {
-#if 1
+  int goodAnode = 0;
   ifstream GeomFile;
   string line;
   int line_counter = 0;
@@ -1705,8 +1725,11 @@ int MUSIC_Simulator::run()
     
   
   GeomFile.open(AnodeGeomFile.c_str());
-  if (!GeomFile.is_open()) 
+  if (!GeomFile.is_open()) {
     cout << "ERROR: Anode geometry file \"" << AnodeGeomFile << "\" couldn't be opened." << endl;
+    cout << "Exiting program." << endl;
+    exit(EXIT_FAILURE);
+  }
   else {
     cout << "Loading anode geometry loaded from \"" << AnodeGeomFile << "\"." << endl;
 
@@ -1898,15 +1921,24 @@ int MUSIC_Simulator::run()
     HPT->GetXaxis()->CenterTitle();
     HPT->GetYaxis()->SetTitle("Energy loss [MeV]");
     HPT->GetYaxis()->CenterTitle(); 
+
+    // From: http://root.cern.ch/root/html/TGeoManager.html#TGeoManager:CloseGeometry
+    // Closing geometry implies checking the geometry validity, fixing shapes
+    // with negative parameters (run-time shapes) building the cache manager,
+    // voxelizing all volumes, counting the total number of physical nodes and
+    // registring the manager class to the browser.
+    Geo->CloseGeometry();
+
+    if (ctf.Update)
+      DrawMUSIC(Eve, 85);
+
+    goodAnode = 1;
     
+    cout << "Anode dimensions: " << AnodeLength << "x" << AnodeHeight << "x" 
+	 << AnodeDepth << "cm^3" << endl;
   }
   
-  DrawMUSIC(Eve, 85);
-
-  cout << "Anode dimensions: " << AnodeLength << "x" << AnodeHeight << "x" 
-       << AnodeDepth << "cm^3" << endl;
-#endif
-  return;
+  return goodAnode;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -1923,10 +1955,12 @@ void MUSIC_Simulator::SetBeamParticle(string Name, int Color, string ELossFile, 
   Beam->SetTrajectoryAtt((short)Color);
   // Currently, this simulation is restricted to one medium (gas) in MUSIC.
   Beam->SetMedium(ELossFile, dEdxScale);
-  TrackBeam->SetName(Name.c_str());
-  TrackBeam->SetMainColor(Color);
-  TrackBeam->SetPickable(kTRUE);
-  Eve->AddElement(TrackBeam);
+  if (ctf.Update) {
+    TrackBeam->SetName(Name.c_str());
+    TrackBeam->SetMainColor(Color);
+    TrackBeam->SetPickable(kTRUE);
+    Eve->AddElement(TrackBeam);
+  }
   //  Kb_after_window = K;
 #endif
   return;
@@ -2019,23 +2053,25 @@ void MUSIC_Simulator::SetEvapResAndPart(string ResName, string ResELossFile, int
   EvaP[CurEva]->SetTrajectoryAtt((short)ParColor);
   EvaP[CurEva]->SetMedium(ParELossFile, dEdxScalePar);
   EvaP[CurEva]->Print();
-  TrackEvaP[CurEva]->SetName(ParName.c_str());
-  TrackEvaP[CurEva]->SetMainColor(ParColor);
-  TrackEvaP[CurEva]->SetPickable(kTRUE);
-  Eve->AddElement(TrackEvaP[CurEva]);
-
+  if (ctf.Update) {
+    TrackEvaP[CurEva]->SetName(ParName.c_str());
+    TrackEvaP[CurEva]->SetMainColor(ParColor);
+    TrackEvaP[CurEva]->SetPickable(kTRUE);
+    Eve->AddElement(TrackEvaP[CurEva]);
+  }
   // Evaporation residue (heavy particle)
   double mr = NuF->GetMass(ResName, "MeV/c^2");
   int Zr = NuF->GetZ(ResName);
   EvaR[CurEva] = new Particle(ResName, mr, Zr, false /*SaveTrajectories off*/);
   EvaR[CurEva]->SetTrajectoryAtt((short)ResColor);
   EvaR[CurEva]->SetMedium(ResELossFile, dEdxScaleRes);
-  EvaR[CurEva]->Print();  
-  TrackEvaR[CurEva]->SetName(ResName.c_str());
-  TrackEvaR[CurEva]->SetMainColor(ResColor);
-  TrackEvaR[CurEva]->SetPickable(kTRUE);
-  Eve->AddElement(TrackEvaR[CurEva]);
-
+  EvaR[CurEva]->Print();
+  if (ctf.Update) {
+    TrackEvaR[CurEva]->SetName(ResName.c_str());
+    TrackEvaR[CurEva]->SetMainColor(ResColor);
+    TrackEvaR[CurEva]->SetPickable(kTRUE);
+    Eve->AddElement(TrackEvaR[CurEva]);
+  }
   CurEva++;
   return;
 }
@@ -2521,34 +2557,6 @@ void MUSIC_Simulator::Simulate(int StpID, // set to -1 for unreacted beam
   long EvtsProcessed = 0;
   long double Frac[11] = {0.01, 0.05, 0.1, 0.2, 0.3, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0};
   int FIndex = 0;
-
-#if 0
-  // ROOT file where the traces will be saved
-  TFile* ROOTfile = 0;
-  
-  if (FileName!="")
-    ROOTfile = new TFile(FileName.c_str(), FileOpt.c_str());
-
-  // Tree similar to the one used for experimental data
-  SimTree = InitTree(ROOTfile, FileOpt);
-
-  TDirectory* trace_dir = 0;
-  if (ROOTfile) {
-    if (FileOpt=="update" || FileOpt=="UPDATE") {
-      trace_dir = (TDirectory*)ROOTfile->Get("traces");
-      trace_dir->cd();
-    }
-    else {
-      trace_dir = ROOTfile->mkdir("traces");
-      trace_dir->cd();
-    }
-  }
-  
-  // Create new traces and trajectories (objectrs) for visualizing the
-  // detector response
-  CreateTracesAndTrajectories();
-
-#endif
   
   cout << "Simulating " << NEvents << " MUSIC traces for strip " << StpID << " ... " << endl;
  
@@ -2556,7 +2564,6 @@ void MUSIC_Simulator::Simulate(int StpID, // set to -1 for unreacted beam
   // compound nucleus sampled by each strip.
   SetInitialKinematics(ctf.Kb); // ideal case with no energy straggling
 
-#if 1
   Particle* BeamInit = new Particle("beam init");  
   BeamInit->Copy(Beam);
   Particle* BeamCopy = new Particle("beam copy");
@@ -2564,12 +2571,13 @@ void MUSIC_Simulator::Simulate(int StpID, // set to -1 for unreacted beam
   if (PrintLevel>0)
     BeamCopy->Print();
   PropagateParticle(BeamCopy, 0, MaxTime, UserStep, DeltaEB_ave);
-  for (int stp=0; stp<AnodeRows; stp++)
-    for (int col=0; col<AnodeCols+1; col++) 
-      TraceUB[col]->SetPoint(stp, stp, DeltaEB_ave[stp][col]);
+  if (tracesCreated)
+    for (int stp=0; stp<AnodeRows; stp++)
+      for (int col=0; col<AnodeCols+1; col++) 
+	TraceUB[col]->SetPoint(stp, stp, DeltaEB_ave[stp][col]);
   
   // PrintEnergetics(ctf.Kb, DeltaEB_ave);
-#endif
+
   
   //-------------------------------------------------------------------------------
   // Some kinematic variables
@@ -2609,20 +2617,22 @@ void MUSIC_Simulator::Simulate(int StpID, // set to -1 for unreacted beam
     Log << "|--------------------------------------------------" << endl; 
   }
   //-------------------------------------------------------------------------------
-
-
-   CalculateCMEnergyRange();
   
-
+  
+  CalculateCMEnergyRange();
+  
+  
   //-------------------------------------------------------------------------------
   // Event for-loop
   //-------------------------------------------------------------------------------
-  Log << "Initiating envent for-loop" << endl;
+  Log << "Initiating event for-loop" << endl;
+  cout << "\nInitiating event for-loop" << endl;
+  
   for (int evt=0; evt<NEvents; evt++) {
     if (evt%1000==0)
       if (CheckMemoryUsage()==0) {
-	Log << "Exiting event for-loop" << endl;
-	break;
+	Log << "Exiting musicsim (memory limit exceeded)." << endl;
+	exit(EXIT_FAILURE);
       }
     
     if (PrintLevel>0) {
@@ -2631,13 +2641,13 @@ void MUSIC_Simulator::Simulate(int StpID, // set to -1 for unreacted beam
       Log << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n" << endl;
     }
     ResetBranches();
-    
-    TraceCan->cd(1);
-    HCT->Draw();
-    TraceCan->cd(2);
-    HPT->Draw();
 
-    // Reset values of TTree branches
+    if (UpdateVis) {
+      TraceCan->cd(1);
+      HCT->Draw();
+      TraceCan->cd(2);
+      HPT->Draw();
+    }
     
     // Reset the detector response
     for (int stp=0; stp<AnodeRows; stp++) 
@@ -2694,10 +2704,12 @@ void MUSIC_Simulator::Simulate(int StpID, // set to -1 for unreacted beam
       }
     }
     else {
-      // Update the kinematics label and then draw it
-      LabelKine->Clear();
-      LabelKine->AddText("Kinematics");
-      LabelKine->AddText(Form("beam: K=%.2f MeV", Ebeam));
+      if (UpdateVis) {
+	// Update the kinematics label and then draw it
+	LabelKine->Clear();
+	LabelKine->AddText("Kinematics");
+	LabelKine->AddText(Form("beam: K=%.2f MeV", Ebeam));
+      }
     }
     
     if (ReacAllowed) {
@@ -2705,12 +2717,16 @@ void MUSIC_Simulator::Simulate(int StpID, // set to -1 for unreacted beam
       // reaction point to the entrance of MUSIC
       Beam->GetX(tf,xf,yf,zf);
       PropagateParticle(Beam, evt, MaxTime, -UserStep, DeltaEB);
-      for (int stp=0; stp<AnodeRows; stp++)
-	for (int col=0; col<AnodeCols+1; col++) 
-	  TraceB[col]->SetPoint(stp, stp, DeltaEB[stp][col]);
+      if (tracesCreated) {
+	for (int stp=0; stp<AnodeRows; stp++)
+	  for (int col=0; col<AnodeCols+1; col++) 
+	    TraceB[col]->SetPoint(stp, stp, DeltaEB[stp][col]);
+      }
       Beam->GetX(ti,xi,yi,zi);                      // <- This is not a mistake
-      TrackBeam->SetOrigin(xi,yi,zi);
-      TrackBeam->SetVector(xf-xi,yf-yi,zf-zi);
+      if (UpdateVis) {
+	TrackBeam->SetOrigin(xi,yi,zi);
+	TrackBeam->SetVector(xf-xi,yf-yi,zf-zi);
+      }
       
       // 5-6. Propagate outgoing particles (evaporation residues)
       for (int er=0; er<CurEva; er++) {
@@ -2718,12 +2734,16 @@ void MUSIC_Simulator::Simulate(int StpID, // set to -1 for unreacted beam
 	// evaporated (light) particle (p,n,4He)
 	EvaP[er]->GetX(ti,xi,yi,zi);
 	PropagateParticle(EvaP[er], evt, MaxTime, UserStep, DeltaE_EvaP[er]);
-	for (int stp=0; stp<AnodeRows; stp++)
-	  for (int col=0; col<AnodeCols+1; col++) 
-	    TraceEP[er][col]->SetPoint(stp, stp, DeltaE_EvaP[er][stp][col]);
+	if (tracesCreated) {
+	  for (int stp=0; stp<AnodeRows; stp++)
+	    for (int col=0; col<AnodeCols+1; col++) 
+	      TraceEP[er][col]->SetPoint(stp, stp, DeltaE_EvaP[er][stp][col]);
+	}
 	EvaP[er]->GetX(tf,xf,yf,zf);
-	TrackEvaP[er]->SetOrigin(xi,yi,zi);
-	TrackEvaP[er]->SetVector(xf-xi,yf-yi,zf-zi);
+	if (UpdateVis) {
+	  TrackEvaP[er]->SetOrigin(xi,yi,zi);
+	  TrackEvaP[er]->SetVector(xf-xi,yf-yi,zf-zi);
+	}
 	xfl[er] = xf;
 	yfl[er] = yf;
 	zfl[er] = zf;
@@ -2731,9 +2751,11 @@ void MUSIC_Simulator::Simulate(int StpID, // set to -1 for unreacted beam
 	// evaporation residue (heavy particle)
 	EvaR[er]->GetX(ti,xi,yi,zi);
 	PropagateParticle(EvaR[er], evt, MaxTime, UserStep, DeltaE_EvaR[er]);
-	for (int stp=0; stp<AnodeRows; stp++)
-	  for (int col=0; col<AnodeCols+1; col++) 
-	    TraceER[er][col]->SetPoint(stp, stp, DeltaE_EvaR[er][stp][col]);
+	if (tracesCreated) {
+	  for (int stp=0; stp<AnodeRows; stp++)
+	    for (int col=0; col<AnodeCols+1; col++) 
+	      TraceER[er][col]->SetPoint(stp, stp, DeltaE_EvaR[er][stp][col]);
+	}
 	EvaR[er]->GetX(tf,xf,yf,zf);
 	if (!EvaR[er]->DoNotPropagate) {
 	  xfe = xf;
@@ -2741,17 +2763,28 @@ void MUSIC_Simulator::Simulate(int StpID, // set to -1 for unreacted beam
 	  zfe = zf;
 	  resID = er;
 	}
-	TrackEvaR[er]->SetOrigin(xi,yi,zi);
-	TrackEvaR[er]->SetVector(xf-xi,yf-yi,zf-zi);
+	if (UpdateVis) {
+	  TrackEvaR[er]->SetOrigin(xi,yi,zi);
+	  TrackEvaR[er]->SetVector(xf-xi,yf-yi,zf-zi);
+	}
       }
     }
     // reaction not allowed, only propagate beam
     else {
       //Beam->Copy(BeamInit);
+      Beam->GetX(ti,xi,yi,zi);
       PropagateParticle(Beam, evt, MaxTime, UserStep, DeltaEB);
-      for (int stp=0; stp<AnodeRows; stp++)
-	for (int col=0; col<AnodeCols+1; col++) 
-	  TraceB[col]->SetPoint(stp, stp, DeltaEB[stp][col]);
+      Beam->GetX(tf,xf,yf,zf);
+      if (UpdateVis) {
+	TrackBeam->SetOrigin(xi,yi,zi);
+	TrackBeam->SetVector(xf-xi,yf-yi,zf-zi);
+      }
+      if (tracesCreated) {
+	for (int stp=0; stp<AnodeRows; stp++)
+	  for (int col=0; col<AnodeCols+1; col++) 
+	    TraceB[col]->SetPoint(stp, stp, DeltaEB[stp][col]);
+	
+      }
       if (StpID>-1) {
 	cout << "Warninig: reaction energetically not allowed for event " << evt 
 	     << " (Kbr= " << this->Kbr << " MeV)." << endl;
@@ -2763,8 +2796,10 @@ void MUSIC_Simulator::Simulate(int StpID, // set to -1 for unreacted beam
     // 7. Compute detector response (i.e. DE for beam + light + heavy)
     // Clone the particle trajectories
     ComputeDetectorResponse(evt, StpID, UpdateVis);
+    Log << "\tDone computing detector response." << endl;
     //    ROOTfile->cd();
-    SimTree->Fill();
+    if (SimTree!=0)
+      SimTree->Fill();
     if (CSV.is_open()) {
       CSV << mainentry << "," << strip0 << ",";
       for (int i=0; i<16; i++) 
@@ -2978,7 +3013,6 @@ void MUSIC_Simulator::Simulate(int StpID, double ThCMMin, double ThCMMax, int Th
 ///////////////////////////////////////////////////////////////////////////////////
 void MUSIC_Simulator::UpdateVisuals(int evt, double Kbr, double zr, double TOF, int Wait)
 {
-#if 1
   if (PrintLevel>0)
     Log << "Update visuals: evt=" << evt << " Kbr=" << Kbr << " MeV zr=" << zr << " cm TOF=" 
 	 << TOF << " ns Wait=" << Wait << "\n3D stuff ..." << endl;
@@ -3016,59 +3050,57 @@ void MUSIC_Simulator::UpdateVisuals(int evt, double Kbr, double zr, double TOF, 
   if (PrintLevel>0)
     Log << "2D stuff..." << endl;
 
-#if 1
-  // Traces of energy loss in columns as a function of the strip
-  // number (detector response).
-  TraceCan->cd(1);
-  LabelKine->Draw();          // Leged with reaction kinematics
-  TraceUB[AnodeCols]->Draw("l same");
-  for (int col=0; col<AnodeCols; col++)
-    Trace[col]->Draw("l same");
-  Trace[AnodeCols]->Draw("*l same");
-  if (LegCol->GetNRows()==0) {
-    LegCol->AddEntry(Trace[AnodeCols],"All columns","l");
+  if (tracesCreated) {
+    // Traces of energy loss in columns as a function of the strip
+    // number (detector response).
+    TraceCan->cd(1);
+    LabelKine->Draw();          // Leged with reaction kinematics
+    TraceUB[AnodeCols]->Draw("l same");
     for (int col=0; col<AnodeCols; col++)
-      LegCol->AddEntry(Trace[col], Form("Column %d", col),"l");
-    LegCol->Draw();
-  }
-
-  // Traces of particles' energy loss as a function of the strip
-  // number
-  TraceCan->cd(2);  
-  TraceUB[AnodeCols]->Draw("l same");
-  TraceB[AnodeCols]->Draw("l same");
-  for (int er=0; er<CurEva; er++) {
-    if (TraceER[er][AnodeCols]->GetN()>0)
-      TraceER[er][AnodeCols]->Draw("l same");
-    if (TraceEP[er][AnodeCols]->GetN()>0)
-      TraceEP[er][AnodeCols]->Draw("l same");
-  }
-  Trace[AnodeCols]->Draw("*l same");  // total detector response
-  if (LegPart->GetNRows()==0) {
-    LegPart->AddEntry(Trace[AnodeCols], "All particles", "l");
-    LegPart->AddEntry(TraceB[AnodeCols], "beam", "l");
-    for (int er=0; er<CurEva; er++) {
-      if (TraceEP[er][AnodeCols]->GetN()>0)
-	LegPart->AddEntry(TraceEP[er][AnodeCols], EvaP[er]->Name.c_str(), "l");
-      if (TraceER[er][AnodeCols]->GetN()>0)
-	LegPart->AddEntry(TraceER[er][AnodeCols], EvaR[er]->Name.c_str(), "l");
+      Trace[col]->Draw("l same");
+    Trace[AnodeCols]->Draw("*l same");
+    if (LegCol->GetNRows()==0) {
+      LegCol->AddEntry(Trace[AnodeCols],"All columns","l");
+      for (int col=0; col<AnodeCols; col++)
+	LegCol->AddEntry(Trace[col], Form("Column %d", col),"l");
+      LegCol->Draw();
     }
+    
+    // Traces of particles' energy loss as a function of the strip
+    // number
+    TraceCan->cd(2);  
+    TraceUB[AnodeCols]->Draw("l same");
+    TraceB[AnodeCols]->Draw("l same");
+    for (int er=0; er<CurEva; er++) {
+      if (TraceER[er][AnodeCols]->GetN()>0)
+	TraceER[er][AnodeCols]->Draw("l same");
+      if (TraceEP[er][AnodeCols]->GetN()>0)
+	TraceEP[er][AnodeCols]->Draw("l same");
+    }
+    Trace[AnodeCols]->Draw("*l same");  // total detector response
+    if (LegPart->GetNRows()==0) {
+      LegPart->AddEntry(Trace[AnodeCols], "All particles", "l");
+      LegPart->AddEntry(TraceB[AnodeCols], "beam", "l");
+      for (int er=0; er<CurEva; er++) {
+	if (TraceEP[er][AnodeCols]->GetN()>0)
+	  LegPart->AddEntry(TraceEP[er][AnodeCols], EvaP[er]->Name.c_str(), "l");
+	if (TraceER[er][AnodeCols]->GetN()>0)
+	  LegPart->AddEntry(TraceER[er][AnodeCols], EvaR[er]->Name.c_str(), "l");
+      }
+    }
+    LegPart->Draw();
+    
+    // Multiplicity 
+    TraceCan->cd(3);
+    TraceMult->GetYaxis()->SetRangeUser(0,AnodeCols+1);
+    TraceMult->Draw("HIST");
+    
+    
+    TraceCan->Update();
+    if (Wait==1)
+      TraceCan->WaitPrimitive();
   }
-  LegPart->Draw();
-
-#endif
-
-  // Multiplicity 
-  TraceCan->cd(3);
-  TraceMult->GetYaxis()->SetRangeUser(0,AnodeCols+1);
-  TraceMult->Draw("HIST");
-
-
-  TraceCan->Update();
-  if (Wait==1)
-    TraceCan->WaitPrimitive();
-
-#endif
+  
   return;
 }
 

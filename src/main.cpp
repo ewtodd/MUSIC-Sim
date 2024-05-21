@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
   cout << "==========================================================================" << endl;
   cout << "|--- MUSIC simulator (musicsim)------------------------------------------|" << endl;
   cout << "| Created by Daniel Santiago-Gonzalez (Argonne National Laboratory)      |" << endl;
-  cout << "| ver 3.0 (2021/1)                                                       |" << endl;
+  cout << "| ver 3.2 (2024/5)                                                       |" << endl;
   cout << "| Usage: ./musicsim control.file                                         |" << endl;
   cout << "| See README.md file for basic installation and usage.                   |" << endl;
   cout << "| For documentation, software updates and license details, please visit: |" << endl;
@@ -72,13 +72,14 @@ int main(int argc, char* argv[])
       cout << "musicsim warning: invalid control file (check address)." << endl;
   }
   TApplication rootApp("musicsim", &argc, argv);
-  MS->run();
-  cout << "To quit musicsim you have 3 options:\n"
-       << " 1) In the Eve Main Window, click 'Browser', then click 'Quit ROOT'\n"
-       << " 2) In the Chart window, click 'File', then click 'Quit ROOT'\n"
-       << " 3) In this terminal, type CTRL+C" << endl;
-  rootApp.Run(kTRUE);
-  rootApp.HandleException(kSigSegmentationViolation);
+  if (MS->run()) {
+    cout << "To quit musicsim you have 3 options:\n"
+	 << " 1) In the Eve Main Window, click 'Browser', then click 'Quit ROOT'\n"
+	 << " 2) In the Chart window, click 'File', then click 'Quit ROOT'\n"
+	 << " 3) In this terminal, type CTRL+C" << endl;
+    rootApp.Run(kTRUE);
+    rootApp.HandleException(kSigSegmentationViolation);
+  }
     
   return 1;
 }
