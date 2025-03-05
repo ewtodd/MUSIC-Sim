@@ -2801,12 +2801,13 @@ void MUSIC_Simulator::Simulate(int StpID, // set to -1 for unreacted beam
     if (SimTree!=0)
       SimTree->Fill();
     if (CSV.is_open()) {
-      CSV << mainentry << "," << strip0 << ",";
+      //CSV << mainentry << "," << strip0 << ",";
+      CSV << strip0 << ",";
       for (int i=0; i<16; i++) { 
 	//CSV << de_l[i] << "," << de_r[i] << ",";
-	CSV << de_l[i] + de_r[i] << ",";
+	CSV << (de_l[i] + de_r[i])/strip0 << ",";
       }
-      CSV << strip17 << "," << cathode << "," << ctf.reacClass << "," << reacStp << endl;
+      CSV << strip17/strip0 << "," << ctf.reacClass << endl;
       mainentry++;
     }
     // 8. Display trace and particle trajecories
