@@ -2802,8 +2802,10 @@ void MUSIC_Simulator::Simulate(int StpID, // set to -1 for unreacted beam
       SimTree->Fill();
     if (CSV.is_open()) {
       CSV << mainentry << "," << strip0 << ",";
-      for (int i=0; i<16; i++) 
-	CSV << de_l[i] << "," << de_r[i] << ",";
+      for (int i=0; i<16; i++) { 
+	//CSV << de_l[i] << "," << de_r[i] << ",";
+	CSV << de_l[i] + de_r[i] << ",";
+      }
       CSV << strip17 << "," << cathode << "," << ctf.reacClass << "," << reacStp << endl;
       mainentry++;
     }
