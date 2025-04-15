@@ -1584,6 +1584,20 @@ int MUSIC_Simulator::run()
     
     Log << "\tVisualization objects created." << endl;
   }
+  else {
+    // Eve = 0;
+    // TrackBeam = 0;
+    // TrackEvaP = 0;
+    // TrackEvaR = 0;
+    // for (int er=0; er<MaxEva; er++) {
+    //   TrackEvaP[er] = 0;
+    //   TrackEvaR[er] = 0;
+    // }
+    // TraceCan = 0;
+    // LegCol = 0;
+    // LegPart = 0;
+    LabelKine = 0;
+  }
   
   SetStripEnergyResolution(ctf.Eres);
   // Geometry
@@ -2259,14 +2273,15 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
   int user_angles = 1;
   
   // Loop over the evaporation residues (heavy) and particles (light particle always in g.s.)
-  string reacstr = Beam->Name + "(" + Target->Name + "," + EvaP[0]->Name + ")" + EvaR[0]->Name; 
+  string reacstr = Beam->Name + "(" + Target->Name + "," + EvaP[0]->Name + ")" + EvaR[0]->Name;
+  Log << "CurEva = " << CurEva << endl;
   for (int er=0; er<CurEva; er++) {
     double ml = EvaP[er]->Mass;
     double mh = EvaR[er]->Mass;
     double Q0 = mb + mt - ml - mh;
     double EneAvail = sqrt(Ptot*Ptot) - ml - mh;
     if (PrintLevel>0) {
-      Log << "--- Reaction -------------------------------------------------------" << endl;
+      Log << "\n--- Reaction -------------------------------------------------------" << endl;
       if (er>0)
 	reacstr = EvaR[er-1]->Name + "->" + EvaP[er]->Name + "+" + EvaR[er]->Name;      
       Log << "reac=" << er << ": " << reacstr << endl;
@@ -2409,16 +2424,18 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
 
     // Get the beta (v/c) for the evaporation residue. Will be used in the next 'er'.
     EvaR[er]->GetBeta(BetaX, BetaY, BetaZ);
-    // if (PrintLevel>0) {
-    //   Log << "Evap residue beta (v/c):" << endl;
-    //   Log << "\tBetaX=" << BetaX << "  BetaY=" << BetaY << "  BetaZ=" << BetaZ << endl; 
-    // }
+    if (PrintLevel>0) {
+      Log << "Evap residue beta (v/c):" << endl;
+      Log << "\tBetaX=" << BetaX << "  BetaY=" << BetaY << "  BetaZ=" << BetaZ << endl; 
+    }
   } // end for (er)
 
-  
+  Log << "*** OUT ***" << endl;
+
   // Fill the leaves related to the reaction kinematics
   Kbr = Beam->GetKE();               // local Kbr (this->Kbr set outside of this method).
   for (int er=0; er<CurEva; er++) {
+    Log << "*** FIRST *** " << er << endl;
     this->theta_CM[er] = theta_CM*180/pi;
     this->phi_CM[er] = phi_CM*180/pi;
     if (!EvaR[er]->DoNotPropagate)
@@ -2433,42 +2450,62 @@ int MUSIC_Simulator::SetReactionKinematics(double Kbr/*MeV*/, double zr/*cm*/, d
     phi_l[er] = (EvaP[er]->GetPhi())*180/pi;
     theta_h[er] = (EvaR[er]->GetTheta())*180/pi;
     phi_h[er] = (EvaR[er]->GetPhi())*180/pi;
+    Log << "*** LAST ***" << endl;
+
   }
 
   // Update the kinematics label and then draw it
-  LabelKine->Clear();
-  LabelKine->AddText("Kinematics");
-  //  LabelKine->AddLine(0.0,0.76,1.0,0.76);
-  LabelKine->AddText(Form("beam: K=%.2f MeV  z_{r}=%.2f cm  tof=%.1f ns", Kbr, zr, tof));
-  for (int er=0; er<CurEva; er++) {
-    if (EvaP[er] && !EvaP[er]->DoNotPropagate) 
-      LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
-			      EvaP[er]->Name.c_str(), EvaP[er]->GetKE(), EvaP[er]->GetTheta()*180/pi,
-			      EvaP[er]->GetPhi()*180/pi));
-    if (EvaR[er] && !EvaR[er]->DoNotPropagate) 
-      LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
-			      EvaR[er]->Name.c_str(), EvaR[er]->GetKE(), EvaR[er]->GetTheta()*180/pi,
-			      EvaR[er]->GetPhi()*180/pi));
+  if (PrintLevel>0) {
+    Log << Form("beam: K=%.2f MeV  z_{r}=%.2f cm  tof=%.1f ns", Kbr, zr, tof) << endl;
+    for (int er=0; er<CurEva; er++) {
+      if (EvaP[er] && !EvaP[er]->DoNotPropagate) { 
+	
+	Log << Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
+		    EvaP[er]->Name.c_str(), EvaP[er]->GetKE(), EvaP[er]->GetTheta()*180/pi,
+		    EvaP[er]->GetPhi()*180/pi) << endl;
+      }
+      if (EvaR[er] && !EvaR[er]->DoNotPropagate) {
+	Log << Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
+		    EvaR[er]->Name.c_str(), EvaR[er]->GetKE(), EvaR[er]->GetTheta()*180/pi,
+		    EvaR[er]->GetPhi()*180/pi) << endl;
+      }
+    }
   }
-
-  if (DeDau1 && DeDau2) {
-    LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
-			    DeDau1->Name.c_str(), DeDau1->GetKE(), DeDau1->GetTheta()*180/pi,
-			    DeDau1->GetPhi()*180/pi));
-    LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
-			    DeDau2->Name.c_str(), DeDau2->GetKE(), DeDau2->GetTheta()*180/pi,
-			    DeDau2->GetPhi()*180/pi));
+  if (LabelKine) {
+    LabelKine->Clear();
+    LabelKine->AddText("Kinematics");
+    Log << "*** Kinematics ***" << endl;
+    //  LabelKine->AddLine(0.0,0.76,1.0,0.76);
+    LabelKine->AddText(Form("beam: K=%.2f MeV  z_{r}=%.2f cm  tof=%.1f ns", Kbr, zr, tof));
+    for (int er=0; er<CurEva; er++) {
+      if (EvaP[er] && !EvaP[er]->DoNotPropagate) 
+	LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
+				EvaP[er]->Name.c_str(), EvaP[er]->GetKE(), EvaP[er]->GetTheta()*180/pi,
+				EvaP[er]->GetPhi()*180/pi));
+      if (EvaR[er] && !EvaR[er]->DoNotPropagate) 
+	LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
+				EvaR[er]->Name.c_str(), EvaR[er]->GetKE(), EvaR[er]->GetTheta()*180/pi,
+				EvaR[er]->GetPhi()*180/pi));
+    }
+    
+    if (DeDau1 && DeDau2) {
+      LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
+			      DeDau1->Name.c_str(), DeDau1->GetKE(), DeDau1->GetTheta()*180/pi,
+			      DeDau1->GetPhi()*180/pi));
+      LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
+			      DeDau2->Name.c_str(), DeDau2->GetKE(), DeDau2->GetTheta()*180/pi,
+			      DeDau2->GetPhi()*180/pi));
+    }
+    else if (Heavy)
+      LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
+			      Heavy->Name.c_str(), Heavy->GetKE(), Heavy->GetTheta()*180/pi,
+			      Heavy->GetPhi()*180/pi));
+    if (Light)
+      LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
+			      Light->Name.c_str(), Light->GetKE(), Light->GetTheta()*180/pi,
+			      Light->GetPhi()*180/pi));
+    LabelKine->AddText(Form("#theta_{c.m.}=%.1f deg", this->theta_CM[0]/*deg*/));
   }
-  else if (Heavy)
-    LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
-			    Heavy->Name.c_str(), Heavy->GetKE(), Heavy->GetTheta()*180/pi,
-			    Heavy->GetPhi()*180/pi));
-  if (Light)
-    LabelKine->AddText(Form("%s: K=%.2f MeV  #theta_{lab}=%.1f deg  #phi_{lab}=%.1f deg",
-			    Light->Name.c_str(), Light->GetKE(), Light->GetTheta()*180/pi,
-			    Light->GetPhi()*180/pi));
-  LabelKine->AddText(Form("#theta_{c.m.}=%.1f deg", this->theta_CM[0]/*deg*/));
-
 
 
 #endif

@@ -11,7 +11,7 @@ Kb		 59.1			   Beam energy as it enters the dead gas layer [MeV]
 KbFWHM		 12.8			   Beam energy FWHM [MeV]
 target		 12C			   
 compound	 28Mg			   
-NumEvapPart	 3			   Number of evaporated particles. E.g. 1 for 17F(4He,1H)
+NumEvapPart	 2			   Number of evaporated particles. E.g. 1 for 17F(4He,1H)
 evap0Name	 1n			   
 evap0Color	 2			   Integer. See ROOT colors.
 res0Name	 27Mg
@@ -27,7 +27,7 @@ dEdxScaleBeam	 0.95			   Beam stopping power scale factor
 dEdxScaleRes0	 0.95			   Heavy particle stopping power scale factor
 dEdxScaleRes1	 0.95			   Heavy particle stopping power scale factor
 NEvents		 606			   Number of events simulated
-Wait		 1			   Wait between simulated events? 1=yes, 0=no
+Wait		 0			   Wait between simulated events? 1=yes, 0=no
 Update		 1			   Update graphics between simulated events? 1=yes, 0=no
 MaxTime		 2000			   Maximum time for an event [ns]
 SimStep		 0.001			   Simulation step size [cm]
