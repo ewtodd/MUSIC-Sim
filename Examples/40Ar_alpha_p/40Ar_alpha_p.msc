@@ -1,6 +1,6 @@
 Control file for musicsim. First two lines will be skipped by loadCtrlFile method.
 PARAMETER        VALUE     	     	   COMMENT
-AnodeGeom	 sim/agfiles/AnodeGeometry	   location of anode geometry file
+AnodeGeom	 agfiles/AnodeGeometry	   location of anode geometry file
 ELossBins	 500			   Number of bins for y axis
 MaxELoss	 40			   Max y value [MeV]
 stripFirst	 4			   First strip
